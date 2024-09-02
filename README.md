@@ -2,7 +2,6 @@
 The goal here is to get the most simple form of a grasp planner working first, then move on to more sophisticated methods
 
 __To Use:__
-* __Edit + run write_config.py__  
     - file_paths
         - __robot_path__ - relative path from grasper.py to robot hand URDF file
         - __object_path__ - path to object URDF file
@@ -27,5 +26,5 @@ __To Use:__
         - __debug_lines__ - shows axis lines for the hand
         - __debug_text__ - shows text on screen to update the user
        
-* __Run grasper.py__
+* __Run multigrasper.py__
     - Should return a list of good grasps specified by a (Position, Orientation, Joint Angle) Tuple. Also returned is the final pose of the object and the grasp quality metrics (volume and epsilson). At the moment, only grasps that pass the gravity check threshold are returned. 
