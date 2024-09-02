@@ -18,7 +18,6 @@ from transforms3d import euler
 multi = 4
 clients = []
 
-# シミュレーションクライアントを動的に生成
 for i in range(multi):
     if i == 0:
         client = bc.BulletClient(connection_mode=p.GUI)
