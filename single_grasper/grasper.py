@@ -1,7 +1,6 @@
 import csv
 import os
 import random
-import threading
 from configparser import ConfigParser
 from math import pi, sqrt
 from time import sleep, time
@@ -10,57 +9,37 @@ import astropy.coordinates
 import numpy as np
 import pybullet as p
 import pybullet_data
-import pybullet_utils.bullet_client as bc
 from pyquaternion import Quaternion
 from scipy.spatial import ConvexHull, distance
 from transforms3d import euler
 
-multi = 1
-clients = []
-
-for i in range(multi):
-    if i == 0:
-        client = bc.BulletClient(connection_mode=p.GUI)
-    else:
-        client = bc.BulletClient(connection_mode=p.DIRECT)
-    client.setAdditionalSearchPath(pybullet_data.getDataPath())
-    clients.append(client)
-
-
-def setup_simulation(p_client):
-    p_client.setPhysicsEngineParameter(fixedTimeStep=1 / 60.0, numSubSteps=4)
-    p_client.configureDebugVisualizer(p.COV_ENABLE_RGB_BUFFER_PREVIEW, enable=0)
-    p_client.configureDebugVisualizer(p.COV_ENABLE_DEPTH_BUFFER_PREVIEW, enable=0)
-    p_client.configureDebugVisualizer(p.COV_ENABLE_SEGMENTATION_MARK_PREVIEW, enable=0)
-    p_client.resetDebugVisualizerCamera(cameraDistance=0.5, cameraYaw=135, cameraPitch=-20, cameraTargetPosition=[0.0, 0.0, 0.0])
-    p_client.setAdditionalSearchPath(pybullet_data.getDataPath())  # optionally
-
-
-for client in clients:
-    setup_simulation(client)
-
 PROJECT_ROOT = os.path.dirname(os.path.dirname(__file__))
+
+
+# PYBULLET HOUSEKEEPING + GUI MAINTENANCE
+physicsClient = p.connect(p.GUI)  # or p.DIRECT for non-graphical version
+p.setAdditionalSearchPath(pybullet_data.getDataPath())  # optionally
+
+p.setPhysicsEngineParameter(fixedTimeStep=1 / 240.0, numSubSteps=4)
+
+# This is to change the visualizer window settings
+p.configureDebugVisualizer(p.COV_ENABLE_RGB_BUFFER_PREVIEW, enable=0)
+p.configureDebugVisualizer(p.COV_ENABLE_DEPTH_BUFFER_PREVIEW, enable=0)
+p.configureDebugVisualizer(p.COV_ENABLE_SEGMENTATION_MARK_PREVIEW, enable=0)
+# change init camera distance/location to view scene
+p.resetDebugVisualizerCamera(cameraDistance=0.5, cameraYaw=135, cameraPitch=-20, cameraTargetPosition=[0.0, 0.0, 0.0])
 
 
 # GLOBAL VARIABLES  - from config file
 config = ConfigParser()
-print(os.path.join(os.path.dirname(__file__), "bh_config_multi.ini"))
-config.read(os.path.join(os.path.dirname(__file__), "bh_config_multi.ini"))
+print(os.path.join(os.path.dirname(__file__), "bh_config.ini"))
+config.read(os.path.join(os.path.dirname(__file__), "bh_config.ini"))
 
 robot_path = config.get("file_paths", "robot_path")
 robot_path = os.path.join(PROJECT_ROOT, robot_path)
-object_path_0 = config.get("file_paths", "object_path_0")
-object_path_0 = os.path.join(PROJECT_ROOT, object_path_0)
-object_scale_0 = config.getfloat("file_paths", "object_scale_0")
-object_path_1 = config.get("file_paths", "object_path_1")
-object_path_1 = os.path.join(PROJECT_ROOT, object_path_1)
-object_scale_1 = config.getfloat("file_paths", "object_scale_1")
-object_path_2 = config.get("file_paths", "object_path_2")
-object_path_2 = os.path.join(PROJECT_ROOT, object_path_2)
-object_scale_2 = config.getfloat("file_paths", "object_scale_2")
-object_path_3 = config.get("file_paths", "object_path_3")
-object_path_3 = os.path.join(PROJECT_ROOT, object_path_3)
-object_scale_3 = config.getfloat("file_paths", "object_scale_3")
+object_path = config.get("file_paths", "object_path")
+object_path = os.path.join(PROJECT_ROOT, object_path)
+object_scale = config.getfloat("file_paths", "object_scale")
 
 init_grasp_distance = config.getfloat("grasp_settings", "init_grasp_distance")
 speed_find_distance = config.getfloat("grasp_settings", "speed_find_distance")
@@ -84,64 +63,54 @@ debug_text = config.getboolean("gui_settings", "debug_text")
 
 
 # UTILIES
-def extract_filename(path):
-    filename_with_ext = os.path.basename(path)
-    filename_without_ext = os.path.splitext(filename_with_ext)[0]
-
-    return filename_without_ext
-
-
 def rand_coord():
     rand_theta = random.uniform(-pi / 2, pi / 2)
     rand_phi = random.uniform(-pi / 2, pi / 2)
     return rand_theta, rand_phi
 
 
-def add_debug_lines(p_client, rID, line_dist=0.3, line_width=500):
+def add_debug_lines(rID, line_dist=0.3, line_width=500):
     """
     Use pybullet's built-in line functionality to see the z/y/z coords of the hand
     """
-    p_client.addUserDebugLine([0, 0, 0], [line_dist, 0, 0], [1, 0, 0], parentObjectUniqueId=rID, parentLinkIndex=-1, lineWidth=line_width)
-    p_client.addUserDebugLine([0, 0, 0], [0, line_dist, 0], [0, 1, 0], parentObjectUniqueId=rID, parentLinkIndex=-1, lineWidth=line_width)
-    p_client.addUserDebugLine([0, 0, 0], [0, 0, line_dist], [0, 0, 1], parentObjectUniqueId=rID, parentLinkIndex=-1, lineWidth=line_width)
+    p.addUserDebugLine([0, 0, 0], [line_dist, 0, 0], [1, 0, 0], parentObjectUniqueId=rID, parentLinkIndex=-1, lineWidth=line_width)
+    p.addUserDebugLine([0, 0, 0], [0, line_dist, 0], [0, 1, 0], parentObjectUniqueId=rID, parentLinkIndex=-1, lineWidth=line_width)
+    p.addUserDebugLine([0, 0, 0], [0, 0, line_dist], [0, 0, 1], parentObjectUniqueId=rID, parentLinkIndex=-1, lineWidth=line_width)
 
 
-def reset_hand(p_client, rID=None, rPos=(0, 0, -init_grasp_distance), rOr=(0, 0, 0, 1), fixed=True):
+def reset_hand(rID=None, rPos=(0, 0, -init_grasp_distance), rOr=(0, 0, 0, 1), fixed=True):
     """
     move the hand back to the starting pos
     """
 
     if rID is None:
-        rID = p_client.loadURDF(robot_path, basePosition=(0, 0, 0), baseOrientation=(0, 0, 0, 1), useFixedBase=fixed, globalScaling=1)
-        p_client.changeDynamics(rID, -1, mass=5.0)
+        rID = p.loadURDF(robot_path, basePosition=(0, 0, 0), baseOrientation=(0, 0, 0, 1), useFixedBase=fixed, globalScaling=1)
+        p.changeDynamics(rID, -1, mass=5.0)
     else:
-        p_client.resetBasePositionAndOrientation(rID, rPos, rOr)
+        p.resetBasePositionAndOrientation(rID, rPos, rOr)
     if debug_lines:
-        add_debug_lines(p_client, rID)
+        add_debug_lines(rID)
     return rID
 
 
-def reset_ob(p_client, oID=None, oPos=(0, 0, 0), fixed=True):
+def reset_ob(oID=None, oPos=(0, 0, 0), fixed=True):
     """
     reset by deleting
     """
     if oID is not None:
-        p_client.removeBody(oID)
+        p.removeBody(oID)
 
-    client_id = p_client._client
-
-    object_path_var = f"object_path_{client_id}"
-    object_scale_var = f"object_scale_{client_id}"
-
-    object_path = globals().get(object_path_var)
-    object_scale = globals().get(object_scale_var)
-
-    if object_path is None or object_scale is None:
-        raise ValueError(f"Invalid client ID or missing variable for client ID: {client_id}")
-
-    oID = p_client.loadURDF(object_path, oPos, globalScaling=object_scale, useFixedBase=fixed)
+    oID = p.loadURDF(object_path, oPos, globalScaling=object_scale, useFixedBase=fixed)
 
     return oID
+
+
+def clean_up(rID):
+    """
+    remove robot + all associated debug feedback
+    """
+    p.removeBody(rID)
+    p.removeAllUserDebugItems()
 
 
 """#####################################################################################################################
@@ -152,27 +121,28 @@ def reset_ob(p_client, oID=None, oPos=(0, 0, 0), fixed=True):
 # TODO: make these more user specifiable (range of angles w reasonable defaults)
 
 
-def hand_dist(p_client, oID, rID, pos, oren):
+def hand_dist(oID, rID, pos, oren):
     """
     actually does tthe movement to have hand touch object to judge distance
 
     returns position of the hand when it touches the object
     """
     # print("reset hand for non-fixed base")
-    reset_hand(p_client, rID, rPos=pos, rOr=oren, fixed=False)
-    relax(p_client, rID)  # want fingers splayed to get distance
+    reset_hand(rID, rPos=pos, rOr=oren, fixed=True)
+    relax(rID)  # want fingers splayed to get distance
     force_vector = np.array(pos) * -speed_find_distance
 
     has_contact = 0
     while not has_contact:  # while still distance between hand/object
-        p_client.applyExternalForce(rID, -1, force_vector, pos, p.WORLD_FRAME)
-        p_client.stepSimulation()
-        has_contact = len(p_client.getContactPoints(rID, oID))
-    t_pos, t_oren = p_client.getBasePositionAndOrientation(rID)
+        p.applyExternalForce(rID, -1, force_vector, pos, p.WORLD_FRAME)
+        p.stepSimulation()
+        has_contact = len(p.getContactPoints(rID, oID))
+    t_pos, t_oren = p.getBasePositionAndOrientation(rID)
+    # clean_up(rID)
     return t_pos  # only need the position of the object
 
 
-def adjust_point_dist(p_client, theta_rad, phi_rad, rID, oID, carts, quat):
+def adjust_point_dist(theta_rad, phi_rad, rID, oID, carts, quat):
     """
     move the hand w/fingers splayed until it touches the object
     should touch in center/palm - this should be the best for an initial grasp
@@ -180,7 +150,7 @@ def adjust_point_dist(p_client, theta_rad, phi_rad, rID, oID, carts, quat):
     returns set of position coordinates representing how far from the object the hand should be (touching + a margin)
     """
 
-    t_pos = hand_dist(p_client, oID, rID, carts, quat)
+    t_pos = hand_dist(oID, rID, carts, quat)
     t_dist = distance.euclidean(t_pos, [0, 0, 0])
     m_dist = t_dist + grasp_distance_margin
     carts = astropy.coordinates.spherical_to_cartesian(m_dist, theta_rad, phi_rad)
@@ -189,7 +159,7 @@ def adjust_point_dist(p_client, theta_rad, phi_rad, rID, oID, carts, quat):
     return flip_carts
 
 
-def get_given_point(p_client, dist, theta_rad, phi_rad, rID, oID):
+def get_given_point(dist, theta_rad, phi_rad, rID, oID):
     """
     For the transform3d euler to quat: (seems like their z is our x, their y is our y, their x is our z)
     Rotate about the current z-axis by ϕ. Then, rotate about the new y-axis by θ
@@ -197,12 +167,12 @@ def get_given_point(p_client, dist, theta_rad, phi_rad, rID, oID):
     carts = astropy.coordinates.spherical_to_cartesian(dist, theta_rad, phi_rad)
     flip_carts = np.array(carts) * -1  # adjust to face obj
     quat = euler.euler2quat(phi_rad + pi, pi / 2 - theta_rad, pi, axes="sxyz")  # pi in the z to face "up"
-    close_carts = adjust_point_dist(p_client, theta_rad, phi_rad, rID, oID, flip_carts, quat)  # find dist to grasp
+    close_carts = adjust_point_dist(theta_rad, phi_rad, rID, oID, flip_carts, quat)  # find dist to grasp
 
     return (close_carts, quat)
 
 
-def sphere_set(p_client, rID, oID, phi_init=pi, phi_span=2 * pi, theta_init=pi / 2, theta_span=pi / 2):
+def sphere_set(rID, oID, phi_init=pi, phi_span=2 * pi, theta_init=pi / 2, theta_span=pi / 2):
     """
     move the hand around the object in a reasonable way
     returns an array of (position, orientation) pairs
@@ -218,12 +188,7 @@ def sphere_set(p_client, rID, oID, phi_init=pi, phi_span=2 * pi, theta_init=pi /
     for theta_i in range(0, (num_cycles_to_grasp + 1)):
         for phi_i in range(0, (num_grasps_per_cycle)):
             point = get_given_point(
-                p_client,
-                dist=init_grasp_distance,
-                theta_rad=(-theta) + increment_theta * theta_i,
-                phi_rad=(-phi) + increment_phi * phi_i,
-                rID=rID,
-                oID=oID,
+                dist=init_grasp_distance, theta_rad=(-theta) + increment_theta * theta_i, phi_rad=(-phi) + increment_phi * phi_i, rID=rID, oID=oID
             )
             set.append(point)
 
@@ -273,7 +238,7 @@ def wrist_rotations(pose):
 #####################################################################################################################"""
 
 
-def grasp(p_client, handId):
+def grasp(handId):
     """
     closes the gripper uniformly + attempts to find a grasp
     this is based on time + not contact points because contact points could just be a finger poking the object
@@ -281,10 +246,13 @@ def grasp(p_client, handId):
     """
     finish_time = time() + grasp_time_limit
     while time() < finish_time:
-        p_client.stepSimulation()
+        p.stepSimulation()
         for joint in active_grasp_joints:
+            # p.setJointMotorControl2(
+            #     bodyUniqueId=handId, jointIndex=joint, controlMode=p.VELOCITY_CONTROL, targetVelocity=target_grasp_velocity, force=max_grasp_force
+            # )
             if joint == 3:
-                p_client.setJointMotorControl2(
+                p.setJointMotorControl2(
                     bodyUniqueId=handId,
                     jointIndex=joint,
                     controlMode=p.VELOCITY_CONTROL,
@@ -292,7 +260,7 @@ def grasp(p_client, handId):
                     force=max_grasp_force,
                 )
             else:
-                p_client.setJointMotorControl2(
+                p.setJointMotorControl2(
                     bodyUniqueId=handId,
                     jointIndex=joint,
                     controlMode=p.VELOCITY_CONTROL,
@@ -301,14 +269,14 @@ def grasp(p_client, handId):
                 )
 
 
-def relax(p_client, rID):
+def relax(rID):
     """
     return all joints to neutral/furthest extended, based on urdf specification
     """
     joint = 0
-    num = p_client.getNumJoints(rID)
+    num = p.getNumJoints(rID)
     while joint < num:
-        p_client.resetJointState(rID, jointIndex=joint, targetValue=0.0)
+        p.resetJointState(rID, jointIndex=joint, targetValue=0.0)
         joint = joint + 1
 
 
@@ -357,14 +325,14 @@ class Grasp:
         )
 
 
-def get_robot_config(p_client, rID, oID):
-    r_pos, r_oren = p_client.getBasePositionAndOrientation(rID)
+def get_robot_config(rID, oID):
+    r_pos, r_oren = p.getBasePositionAndOrientation(rID)
     joints = {}
-    num = p_client.getNumJoints(rID)
+    num = p.getNumJoints(rID)
     for joint in range(0, num):
-        joints[joint] = p_client.getJointState(rID, joint)
-    o_pos, o_oren = p_client.getBasePositionAndOrientation(oID)
-    vol, ep = grip_qual(p_client, rID, oID)
+        joints[joint] = p.getJointState(rID, joint)
+    o_pos, o_oren = p.getBasePositionAndOrientation(oID)
+    vol, ep = grip_qual(rID, oID)
     return Grasp(r_pos, r_oren, joints, o_pos, o_oren, vol, ep)
 
 
@@ -373,67 +341,66 @@ def get_robot_config(p_client, rID, oID):
 #####################################################################################################################"""
 
 
-def check_grip(p_client, oID, rID):
+def check_grip(oID, rID):
     """
     check grip by adding in gravity
     """
     # print("checking strength of current grip")
     mass = 0.1
     mag = 9.8 * mass
-    pos, oren = p_client.getBasePositionAndOrientation(rID)
+    pos, oren = p.getBasePositionAndOrientation(rID)
     time_limit = 0.5
     finish_time = time() + time_limit
-    p_client.addUserDebugText("Grav Check!", [-0.07, 0.07, 0.07], textColorRGB=[0, 0, 1], textSize=1)
+    p.addUserDebugText("Grav Check!", [-0.07, 0.07, 0.07], textColorRGB=[0, 0, 1], textSize=1)
     while time() < finish_time:
-        p_client.stepSimulation()
-        p_client.applyExternalForce(oID, linkIndex=-1, forceObj=[0, 0, -mag], posObj=pos, flags=p.WORLD_FRAME)
-    contact = p_client.getContactPoints(oID, rID)  # see if hand is still holding obj after gravity is applied
+        p.stepSimulation()
+        p.applyExternalForce(oID, linkIndex=-1, forceObj=[0, 0, -mag], posObj=pos, flags=p.WORLD_FRAME)
+    contact = p.getContactPoints(oID, rID)  # see if hand is still holding obj after gravity is applied
     if len(contact) > 0:
-        p_client.removeAllUserDebugItems()
-        p_client.addUserDebugText("Grav Check Passed!", [-0.07, 0.07, 0.07], textColorRGB=[0, 1, 0], textSize=1)
+        p.removeAllUserDebugItems()
+        p.addUserDebugText("Grav Check Passed!", [-0.07, 0.07, 0.07], textColorRGB=[0, 1, 0], textSize=1)
         print("Grav Check Passed")
         sleep(0.2)
-        return get_robot_config(p_client, rID, oID)
+        return get_robot_config(rID, oID)
     else:
-        p_client.removeAllUserDebugItems()
-        p_client.addUserDebugText("Grav Check Failed!", [-0.07, 0.07, 0.07], textColorRGB=[1, 0, 0], textSize=1)
+        p.removeAllUserDebugItems()
+        p.addUserDebugText("Grav Check Failed!", [-0.07, 0.07, 0.07], textColorRGB=[1, 0, 0], textSize=1)
         print("Grav Check Failed")
         sleep(0.2)
         return None
 
 
-def grip_qual(p_client, oID, rID):
+def grip_qual(oID, rID):
     """
     evaluate the grasp quality
     """
-    contact = p_client.getContactPoints(oID, rID)  # see if hand is still holding obj after gravity is applied
+    contact = p.getContactPoints(oID, rID)  # see if hand is still holding obj after gravity is applied
     if len(contact) > 0:
-        force_torque = gws_pyramid_extension(p_client, rID, oID)
-        if not force_torque:
-            vol = None
-            ep = None
-        else:
-            force_torque = np.array(force_torque) + np.random.normal(scale=1e-6, size=np.array(force_torque).shape)
-            vol = volume(force_torque)
-            ep = eplison(force_torque)
+        force_torque = gws_pyramid_extension(rID, oID)
+        # print("force_torque: ", force_torque)
+        # print("force_torque shape: ", np.array(force_torque).shape)
+        vol = volume(force_torque)
+        # print("volume: ", vol)
+        ep = epsilon(force_torque)
+        # print("epsilon: ", ep)
     else:
         vol = None
         ep = None
     return vol, ep
 
 
-def get_obj_info(p_client, oID):  # TODO: what about not mesh objects?
+def get_obj_info(oID):  # TODO: what about not mesh objects?
     """
     get object data to figure out how far away the hand needs to be to make its approach
     """
-    obj_data = p_client.getCollisionShapeData(oID, -1)[0]
-    geometry_type = obj_data[2]
+    obj_data = p.getCollisionShapeData(oID, -1)[0]
+    # geometry_type = obj_data[2]
     # print("geometry type: " + str(geometry_type))
     dimensions = obj_data[3]
     # print("dimensions: "+ str(dimensions))
     local_frame_pos = obj_data[5]
     # print("local frome position: " + str(local_frame_pos))
-    local_frame_orn = obj_data[6]
+    # local_frame_orn = obj_data[6]
     # print("local frame oren: " + str(local_frame_orn))
     diagonal = sqrt(dimensions[0] ** 2 + dimensions[1] ** 2 + dimensions[2] ** 2)
     # print("diagonal: ", diagonal)
@@ -441,17 +408,17 @@ def get_obj_info(p_client, oID):  # TODO: what about not mesh objects?
     return local_frame_pos, max_radius
 
 
-def gws(p_client, rID, oID):
+def gws(rID, oID):
     """
     calculate force/torque vectors for use in evaluation
 
     """
     print("eval gws")
-    local_frame_pos, max_radius = get_obj_info(p_client, oID)
+    local_frame_pos, max_radius = get_obj_info(oID)
     # sim uses center of mass as a reference for the Cartesian world transforms in getBasePositionAndOrientation
-    obj_pos, obj_orn = p_client.getBasePositionAndOrientation(oID)
+    obj_pos, obj_orn = p.getBasePositionAndOrientation(oID)
     force_torque = []
-    contact_points = p_client.getContactPoints(rID, oID)
+    contact_points = p.getContactPoints(rID, oID)
     for point in contact_points:
         contact_pos = point[6]
         normal_vector_on_obj = point[7]
@@ -488,13 +455,13 @@ def get_new_normals(force_vector, normal_force, sides, radius):
     return return_vectors
 
 
-def gws_pyramid_extension(p_client, rID, oID, pyramid_sides=force_pyramid_sides, pyramid_radius=force_pyramid_radius):
+def gws_pyramid_extension(rID, oID, pyramid_sides=force_pyramid_sides, pyramid_radius=force_pyramid_radius):
     # often dont have enough contact points to create a qhull of the right dimensions, so create more that are very close to the existing ones
-    local_frame_pos, max_radius = get_obj_info(p_client, oID)
+    local_frame_pos, max_radius = get_obj_info(oID)
     # sim uses center of mass as a reference for the Cartesian world transforms in getBasePositionAndOrientation
-    obj_pos, obj_orn = p_client.getBasePositionAndOrientation(oID)
+    obj_pos, obj_orn = p.getBasePositionAndOrientation(oID)
     force_torque = []
-    contact_points = p_client.getContactPoints(rID, oID)
+    contact_points = p.getContactPoints(rID, oID)
     for point in contact_points:
         contact_pos = point[6]
         normal_vector_on_obj = point[7]
@@ -518,22 +485,11 @@ def volume(force_torque):
     get qhull of the 6 dim vectors [fx, fy, fz, tx, ty, tz] created by gws (from contact points)
     get the volume
     """
-    if len(force_torque) < 3:
-        print("Error: force_torque does not have enough points for ConvexHull")
-        print("force_torque:", force_torque)
-        return None  # または、適切なエラーハンドリングを追加
-
-    try:
-        vol = ConvexHull(points=force_torque)
-    except Exception as e:
-        print("ConvexHull computation failed:", e)
-        print("force_torque:", force_torque)
-        return None
-
+    vol = ConvexHull(points=force_torque)
     return vol.volume
 
 
-def eplison(force_torque):
+def epsilon(force_torque):
     """
     get qhull of the 6 dim vectors [fx, fy, fz, tx, ty, tz] created by gws (from contact points)
     get the distance from centroid of the hull to the closest vertex
@@ -543,12 +499,12 @@ def eplison(force_torque):
     for dim in range(0, 6):
         centroid.append(np.mean(hull.points[hull.vertices, dim]))
     shortest_distance = 500000000
-    closest_point = None
+    # closest_point = None
     for point in force_torque:
         point_dist = distance.euclidean(centroid, point)
         if point_dist < shortest_distance:
             shortest_distance = point_dist
-            closest_point = point
+            # closest_point = point
 
     return shortest_distance
 
@@ -577,72 +533,51 @@ def round_grip_data(grip, decimal_places):
 #####################################################################################################################"""
 
 
-def run_simulation(client):
+rID = reset_hand()
+oID = reset_ob()
 
-    rID = reset_hand(client)
-    oID = reset_ob(client)
+hand_set = sphere_set(rID=rID, oID=oID)
 
-    hand_set = sphere_set(client, rID=rID, oID=oID)
+p.changeDynamics(rID, -1, mass=0.0)
+oID = reset_ob(oID, [0, 0, 0])
 
-    client.changeDynamics(rID, -1, mass=0.0)
-    oID = reset_ob(client, oID, [0, 0, 0])
+good_grasps = []
 
-    good_grips = []
+pos = 0
+for pose in hand_set:
+    poses = []
+    poses.append(pose)
+    if use_wrist_rotations:
+        rotated_poses = wrist_rotations(pose)
+        poses = poses + rotated_poses
 
-    pos = 0
-    for pose in hand_set:
-        poses = []
-        poses.append(pose)
-        if use_wrist_rotations:
-            rotated_poses = wrist_rotations(pose)
-            poses = poses + rotated_poses
+    for pose in poses:
+        print(" ")
+        print("Pose #: ", pos)
+        relax(rID)
+        p.removeAllUserDebugItems()
+        p.resetBasePositionAndOrientation(rID, pose[0], pose[1])
+        if debug_lines:
+            add_debug_lines(rID)
+        oID = reset_ob(oID, [0, 0, 0], fixed=False)
+        grasp(rID)
+        vol, ep = grip_qual(oID, rID)
+        print("Volume: ", vol)
+        print("Epslion: ", ep)
+        good_grasps.append(check_grip(oID, rID))
+        pos += 1
 
-        for pose in poses:
-            print(" ")
-            print("Pose #: ", pos)
-            relax(client, rID)
-            client.removeAllUserDebugItems()
-            client.resetBasePositionAndOrientation(rID, pose[0], pose[1])
-            if debug_lines:
-                add_debug_lines(client, rID)
-            oID = reset_ob(client, oID, [0, 0, 0], fixed=False)
-            grasp(client, rID)
-            vol, ep = grip_qual(client, oID, rID)
-            print("Volume: ", vol)
-            print("Epslion: ", ep)
-            good_grips.append(check_grip(client, oID, rID))
-            pos += 1
 
-    print("Num Good Grips: ", len(good_grips))
-    print("Grips:")
-    for grip in good_grips:
+print("Num Good Grips: ", len(good_grasps))
+print("Grips:")
+decimal_places = 5
+
+with open("good_grasps.csv", mode="w", newline="") as file:
+    writer = csv.writer(file)
+    writer.writerow(["Robot Pose", "Robot Joints", "Object Pose", "Quality Volume", "Quality Epsilon"])
+
+    for grip in good_grasps:
+        if grip is not None:
+            rounded_robot_pose, rounded_robot_joints, rounded_object_pose, rounded_vol, rounded_ep = round_grip_data(grip, decimal_places)
+            writer.writerow([rounded_robot_pose, rounded_robot_joints, rounded_object_pose, rounded_vol, rounded_ep])
         print(grip)
-
-    decimal_places = 5
-
-    client_id = client._client
-    object_path_var = f"object_path_{client_id}"
-    object_path = globals().get(object_path_var)
-    filename = extract_filename(object_path)
-
-    # CSVファイルに保存するコード
-    with open(f"good_grasps_{filename}.csv", mode="w", newline="") as file:
-        writer = csv.writer(file)
-        writer.writerow(["Robot Pose", "Robot Joints", "Object Pose", "Quality Volume", "Quality Epsilon"])  # ヘッダー
-
-        for grip in good_grips:
-            if grip is not None:
-                rounded_robot_pose, rounded_robot_joints, rounded_object_pose, rounded_vol, rounded_ep = round_grip_data(grip, decimal_places)
-                writer.writerow([rounded_robot_pose, rounded_robot_joints, rounded_object_pose, rounded_vol, rounded_ep])
-            print(grip)
-
-
-threads = []
-for client in clients:
-    thread = threading.Thread(target=run_simulation, args=(client,))
-    threads.append(thread)
-    thread.start()
-
-# 全スレッドの終了を待つ
-for thread in threads:
-    thread.join()
