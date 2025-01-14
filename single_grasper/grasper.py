@@ -238,6 +238,42 @@ def wrist_rotations(pose):
 #####################################################################################################################"""
 
 
+def grasp_with_feedback(oID, handId):
+    """
+    アクティブに制御しながら物体を安定把持
+    """
+    finish_time = time() + grasp_time_limit
+    while time() < finish_time:
+        p.stepSimulation()
+
+        # 接触点から力のフィードバックを取得
+        contact_points = p.getContactPoints(handId, oID)
+        if len(contact_points) == 0:
+            # 接触がなければ軽く閉じる
+            for joint in active_grasp_joints:
+                p.setJointMotorControl2(
+                    bodyUniqueId=handId,
+                    jointIndex=joint,
+                    controlMode=p.VELOCITY_CONTROL,
+                    targetVelocity=target_grasp_velocity,
+                    force=max_grasp_force / 2.0,
+                )
+        else:
+            # 接触があれば接触力を調整
+            for point in contact_points:
+                normal_force = point[9]  # 法線方向の力
+                contact_link = point[4]  # 接触しているリンク
+                if contact_link in active_grasp_joints:
+                    # PD制御で力を調整
+                    desired_force = max_grasp_force - normal_force
+                    p.setJointMotorControl2(
+                        bodyUniqueId=handId,
+                        jointIndex=contact_link,
+                        controlMode=p.TORQUE_CONTROL,
+                        force=desired_force,
+                    )
+
+
 def grasp(handId):
     """
     closes the gripper uniformly + attempts to find a grasp
@@ -562,7 +598,9 @@ for pose in hand_set:
         if debug_lines:
             add_debug_lines(rID)
         oID = reset_ob(oID, [0, 0, 0], fixed=False)
-        grasp(rID)
+        # grasp(rID)
+        grasp_with_feedback(oID, rID)
+
         vol, ep = grip_qual(oID, rID)
         print("Volume: ", vol)
         print("Epslion: ", ep)
