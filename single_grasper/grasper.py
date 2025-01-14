@@ -251,7 +251,7 @@ def grasp(handId):
             # p.setJointMotorControl2(
             #     bodyUniqueId=handId, jointIndex=joint, controlMode=p.VELOCITY_CONTROL, targetVelocity=target_grasp_velocity, force=max_grasp_force
             # )
-            if joint == 3:
+            if joint == 9 or joint == 10:
                 p.setJointMotorControl2(
                     bodyUniqueId=handId,
                     jointIndex=joint,
@@ -393,6 +393,8 @@ def get_obj_info(oID):  # TODO: what about not mesh objects?
     """
     get object data to figure out how far away the hand needs to be to make its approach
     """
+    print("oID:", oID)
+    print(p.getCollisionShapeData(oID, -1))
     obj_data = p.getCollisionShapeData(oID, -1)[0]
     # geometry_type = obj_data[2]
     # print("geometry type: " + str(geometry_type))

@@ -7,6 +7,7 @@ p.setAdditionalSearchPath(pybullet_data.getDataPath())
 
 # URDFをロード
 robot_id = p.loadURDF("RobotURDFs/wbr_description/urdf/wbr_hand.urdf")
+# robot_id = p.loadURDF("RobotURDFs/barrett_hand_description/urdf/bh.urdf")
 
 # シミュレーション設定
 # p.setGravity(0, 0, -9.8)
