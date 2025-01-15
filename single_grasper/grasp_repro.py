@@ -223,7 +223,7 @@ def grasp_with_feedback(oID, rID, sliders):
                 jointIndex=joint_index,
                 controlMode=p.POSITION_CONTROL,
                 targetPosition=target_position,
-                force=500,  # モーターの出力を設定
+                force=max_grasp_force,  # モーターの出力を設定
             )
 
         # Get feedback from contact points
