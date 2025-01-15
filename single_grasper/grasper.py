@@ -409,8 +409,6 @@ def check_grip(oID, rID):
     check grip by adding in gravity
     """
     # print("checking strength of current grip")
-    # mass = 0.1
-    # mag = 9.8 * mass
     pos, oren = p.getBasePositionAndOrientation(rID)
     time_limit = 5
     finish_time = time() + time_limit
@@ -419,7 +417,6 @@ def check_grip(oID, rID):
     p.setGravity(0, 0, -9.8)
     while time() < finish_time:
         p.stepSimulation()
-        # p.applyExternalForce(oID, linkIndex=-1, forceObj=[0, 0, -mag], posObj=pos, flags=p.WORLD_FRAME)
         contact = p.getContactPoints(oID, rID)  # see if hand is still holding obj after gravity is applied
         if len(contact) == 0:
             grip_lost = True
