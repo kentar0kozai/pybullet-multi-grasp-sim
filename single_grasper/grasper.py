@@ -523,7 +523,7 @@ def volume(force_torque):
     get qhull of the 6 dim vectors [fx, fy, fz, tx, ty, tz] created by gws (from contact points)
     get the volume
     """
-    vol = ConvexHull(points=force_torque)
+    vol = ConvexHull(points=force_torque, qhull_options="QJ")
     return vol.volume
 
 
@@ -532,7 +532,7 @@ def epsilon(force_torque):
     get qhull of the 6 dim vectors [fx, fy, fz, tx, ty, tz] created by gws (from contact points)
     get the distance from centroid of the hull to the closest vertex
     """
-    hull = ConvexHull(points=force_torque)
+    hull = ConvexHull(points=force_torque, qhull_options="QJ")
     centroid = []
     for dim in range(0, 6):
         centroid.append(np.mean(hull.points[hull.vertices, dim]))
