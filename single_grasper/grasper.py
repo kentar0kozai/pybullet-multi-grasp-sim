@@ -242,13 +242,31 @@ def grasp_with_feedback(oID, handId):
     """
     アクティブに制御しながら物体を安定把持
     """
+
+    finger_pairs = {
+        2: 3,
+        3: 2,
+        5: 6,
+        6: 5,
+        9: 10,
+        10: 9,
+    }
+
     finish_time = time() + grasp_time_limit
     while time() < finish_time:
         p.stepSimulation()
 
+        num_joints = p.getNumJoints(rID)
+        for joint_index in range(num_joints):
+            if joint_index not in active_grasp_joints:
+                # 非アクティブなジョイントは固定
+                p.setJointMotorControl2(
+                    bodyUniqueId=rID, jointIndex=joint_index, controlMode=p.POSITION_CONTROL, targetPosition=0.0, force=500  # 十分な固定力
+                )
+
         # 接触点から力のフィードバックを取得
         contact_points = p.getContactPoints(handId, oID)
-        if len(contact_points) == 0:
+        if len(contact_points) < 3:
             # 接触がなければ軽く閉じる
             for joint in active_grasp_joints:
                 p.setJointMotorControl2(
@@ -256,19 +274,28 @@ def grasp_with_feedback(oID, handId):
                     jointIndex=joint,
                     controlMode=p.VELOCITY_CONTROL,
                     targetVelocity=target_grasp_velocity,
-                    force=max_grasp_force / 2.0,
+                    force=max_grasp_force,
                 )
         else:
             # 接触があれば接触力を調整
             for point in contact_points:
                 normal_force = point[9]  # 法線方向の力
-                contact_link = point[4]  # 接触しているリンク
+                contact_link = point[3]  # 接触しているリンク
+                print(contact_link)
                 if contact_link in active_grasp_joints:
                     # PD制御で力を調整
                     desired_force = max_grasp_force - normal_force
                     p.setJointMotorControl2(
                         bodyUniqueId=handId,
                         jointIndex=contact_link,
+                        controlMode=p.TORQUE_CONTROL,
+                        force=desired_force,
+                    )
+                paired_joint = finger_pairs.get(contact_link)
+                if paired_joint is not None:
+                    p.setJointMotorControl2(
+                        bodyUniqueId=handId,
+                        jointIndex=paired_joint,
                         controlMode=p.TORQUE_CONTROL,
                         force=desired_force,
                     )
@@ -382,28 +409,36 @@ def check_grip(oID, rID):
     check grip by adding in gravity
     """
     # print("checking strength of current grip")
-    mass = 0.1
-    mag = 9.8 * mass
+    # mass = 0.1
+    # mag = 9.8 * mass
     pos, oren = p.getBasePositionAndOrientation(rID)
-    time_limit = 0.5
+    time_limit = 5
     finish_time = time() + time_limit
+    grip_lost = False
     p.addUserDebugText("Grav Check!", [-0.07, 0.07, 0.07], textColorRGB=[0, 0, 1], textSize=1)
+    p.setGravity(0, 0, -9.8)
     while time() < finish_time:
         p.stepSimulation()
-        p.applyExternalForce(oID, linkIndex=-1, forceObj=[0, 0, -mag], posObj=pos, flags=p.WORLD_FRAME)
-    contact = p.getContactPoints(oID, rID)  # see if hand is still holding obj after gravity is applied
-    if len(contact) > 0:
-        p.removeAllUserDebugItems()
-        p.addUserDebugText("Grav Check Passed!", [-0.07, 0.07, 0.07], textColorRGB=[0, 1, 0], textSize=1)
-        print("Grav Check Passed")
-        sleep(0.2)
-        return get_robot_config(rID, oID)
-    else:
+        # p.applyExternalForce(oID, linkIndex=-1, forceObj=[0, 0, -mag], posObj=pos, flags=p.WORLD_FRAME)
+        contact = p.getContactPoints(oID, rID)  # see if hand is still holding obj after gravity is applied
+        if len(contact) == 0:
+            grip_lost = True
+            break
+    p.setGravity(0, 0, 0)
+
+    # Evaluate the result of the grip test
+    if grip_lost:
         p.removeAllUserDebugItems()
         p.addUserDebugText("Grav Check Failed!", [-0.07, 0.07, 0.07], textColorRGB=[1, 0, 0], textSize=1)
         print("Grav Check Failed")
         sleep(0.2)
-        return None
+        return None  # Grip failed, move to the next attempt
+    else:
+        p.removeAllUserDebugItems()
+        p.addUserDebugText("Grav Check Passed!", [-0.07, 0.07, 0.07], textColorRGB=[0, 1, 0], textSize=1)
+        print("Grav Check Passed")
+        sleep(0.2)
+        return get_robot_config(rID, oID)  # Grip successful, return configuration
 
 
 def grip_qual(oID, rID):

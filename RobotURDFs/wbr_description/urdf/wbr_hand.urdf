@@ -17,7 +17,7 @@
     </collision>
     <inertial>
       <mass value="1.0"/>
-      <inertia ixx="0.001" ixy="0.0" ixz="0.0" iyy="0.001" iyz="0.0" izz="0.001"/>
+      <inertia ixx="0.6" ixy="0.0" ixz="0.0" iyy="0.6" iyz="0.0" izz="0.6"/>
     </inertial>
   </link>
   <joint name="hand_joint" type="fixed">
@@ -40,13 +40,13 @@
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://wbr_description/meshes/hand/R_hand.dae" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://wbr_description/meshes/hand/R_hand.stl" scale="0.001 0.001 0.001"/>
       </geometry>
     </collision>
     <inertial>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <mass value="0.25"/>
-      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+      <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
     </inertial>
   </link>
 
@@ -61,13 +61,13 @@
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://wbr_description/meshes/hand/R_first_finger_F3.dae" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://wbr_description/meshes/hand/R_first_finger_F3.stl" scale="0.001 0.001 0.001"/>
       </geometry>
     </collision>
     <inertial>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <mass value="0.05"/>
-      <inertia ixx="0.0005" ixy="0" ixz="0" iyy="0.0005" iyz="0" izz="0.0005"/>
+      <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
     </inertial>
   </link>
 
@@ -89,13 +89,13 @@
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://wbr_description/meshes/hand/R_first_finger_F2.dae" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://wbr_description/meshes/hand/R_first_finger_F2.stl" scale="0.001 0.001 0.001"/>
       </geometry>
     </collision>
     <inertial>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <mass value="0.03"/>
-      <inertia ixx="0.0003" ixy="0" ixz="0" iyy="0.0003" iyz="0" izz="0.0003"/>
+      <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
     </inertial>
   </link>
 
@@ -117,13 +117,13 @@
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://wbr_description/meshes/hand/R_first_finger_F1.dae" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://wbr_description/meshes/hand/R_first_finger_F1.stl" scale="0.001 0.001 0.001"/>
       </geometry>
     </collision>
     <inertial>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <mass value="0.03"/>
-      <inertia ixx="0.0003" ixy="0" ixz="0" iyy="0.0003" iyz="0" izz="0.0003"/>
+      <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
     </inertial>
   </link>
 
@@ -146,13 +146,13 @@
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://wbr_description/meshes/hand/R_middle_finger_F3.dae" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://wbr_description/meshes/hand/R_middle_finger_F3.stl" scale="0.001 0.001 0.001"/>
       </geometry>
     </collision>
     <inertial>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <mass value="0.05"/>
-      <inertia ixx="0.0005" ixy="0" ixz="0" iyy="0.0005" iyz="0" izz="0.0005"/>
+      <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
     </inertial>
   </link>
 
@@ -174,13 +174,13 @@
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://wbr_description/meshes/hand/R_middle_finger_F2.dae" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://wbr_description/meshes/hand/R_middle_finger_F2.stl" scale="0.001 0.001 0.001"/>
       </geometry>
     </collision>
     <inertial>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <mass value="0.03"/>
-      <inertia ixx="0.0003" ixy="0" ixz="0" iyy="0.0003" iyz="0" izz="0.0003"/>
+      <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
     </inertial>
   </link>
 
@@ -202,13 +202,13 @@
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://wbr_description/meshes/hand/R_middle_finger_F1.dae" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://wbr_description/meshes/hand/R_middle_finger_F1.stl" scale="0.001 0.001 0.001"/>
       </geometry>
     </collision>
     <inertial>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <mass value="0.03"/>
-      <inertia ixx="0.0003" ixy="0" ixz="0" iyy="0.0003" iyz="0" izz="0.0003"/>
+      <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
     </inertial>
   </link>
 
@@ -231,13 +231,13 @@
     <collision>
       <origin rpy="0 0 3.14" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://wbr_description/meshes/hand/R_thumb_F4.dae" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://wbr_description/meshes/hand/R_thumb_F4.stl" scale="0.001 0.001 0.001"/>
       </geometry>
     </collision>
     <inertial>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <mass value="0.05"/>
-      <inertia ixx="0.0005" ixy="0" ixz="0" iyy="0.0005" iyz="0" izz="0.0005"/>
+      <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
     </inertial>
   </link>
 
@@ -259,13 +259,13 @@
     <collision>
       <origin rpy="0 0 -1.57" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://wbr_description/meshes/hand/R_thumb_F3.dae" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://wbr_description/meshes/hand/R_thumb_F3.stl" scale="0.001 0.001 0.001"/>
       </geometry>
     </collision>
     <inertial>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <mass value="0.03"/>
-      <inertia ixx="0.0003" ixy="0" ixz="0" iyy="0.0003" iyz="0" izz="0.0003"/>
+      <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
     </inertial>
   </link>
 
@@ -287,13 +287,13 @@
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://wbr_description/meshes/hand/R_thumb_F2.dae" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://wbr_description/meshes/hand/R_thumb_F2.stl" scale="0.001 0.001 0.001"/>
       </geometry>
     </collision>
     <inertial>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <mass value="0.03"/>
-      <inertia ixx="0.0003" ixy="0" ixz="0" iyy="0.0003" iyz="0" izz="0.0003"/>
+      <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
     </inertial>
   </link>
 
@@ -315,13 +315,13 @@
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://wbr_description/meshes/hand/R_thumb_F1.dae" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://wbr_description/meshes/hand/R_thumb_F1.stl" scale="0.001 0.001 0.001"/>
       </geometry>
     </collision>
     <inertial>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <mass value="0.03"/>
-      <inertia ixx="0.0003" ixy="0" ixz="0" iyy="0.0003" iyz="0" izz="0.0003"/>
+      <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
     </inertial>
   </link>
 
