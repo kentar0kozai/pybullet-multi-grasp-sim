@@ -21,7 +21,7 @@
     </inertial>
   </link>
   <joint name="hand_joint" type="fixed">
-    <origin rpy="0 0 -1.57" xyz="0 -0.07 0.0"/>
+    <origin rpy="0 0 -1.57" xyz="0 -0.08 -0.01"/>
     <parent link="base_link"/>
     <child link="hand_base_link"/>
   </joint>
@@ -40,7 +40,7 @@
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://wbr_description/meshes/hand/R_hand.stl" scale="0.0007 0.0007 0.0007"/>
+        <mesh filename="package://wbr_description/meshes/hand/R_hand.stl" scale="0.001 0.001 0.001"/>
       </geometry>
     </collision>
     <inertial>
@@ -55,13 +55,13 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://wbr_description/meshes/hand/R_first_finger_F3.STL" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://wbr_description/meshes/hand/R_first_finger_F3.STL" scale="0.0015 0.001 0.001"/>
       </geometry>
     </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://wbr_description/meshes/hand/R_first_finger_F3.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://wbr_description/meshes/hand/R_first_finger_F3.stl" scale="0.0015 0.001 0.001"/>
       </geometry>
     </collision>
     <inertial>
@@ -83,13 +83,13 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://wbr_description/meshes/hand/R_first_finger_F2.STL" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://wbr_description/meshes/hand/R_first_finger_F2.STL" scale="0.001 0.0015 0.001"/>
       </geometry>
     </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://wbr_description/meshes/hand/R_first_finger_F2.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://wbr_description/meshes/hand/R_first_finger_F2.stl" scale="0.001 0.0015 0.001"/>
       </geometry>
     </collision>
     <inertial>
@@ -102,7 +102,7 @@
   <joint name="index_joint_2" type="revolute">
     <parent link="index_finger_1"/>
     <child link="index_finger_2"/>
-    <origin rpy="0 1.57 -1.57" xyz="-0.02 0 0"/>
+    <origin rpy="0 1.57 -1.57" xyz="-0.03 0 0"/>
     <axis xyz="0 0 1"/>
     <limit lower="0" upper="1.57" effort="1.0" velocity="1.0"/>
   </joint>
@@ -111,13 +111,13 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://wbr_description/meshes/hand/R_first_finger_F1.STL" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://wbr_description/meshes/hand/R_first_finger_F1.STL" scale="0.001 0.0015 0.001"/>
       </geometry>
     </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://wbr_description/meshes/hand/R_first_finger_F1.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://wbr_description/meshes/hand/R_first_finger_F1.stl" scale="0.001 0.0015 0.001"/>
       </geometry>
     </collision>
     <inertial>
@@ -130,9 +130,9 @@
   <joint name="index_joint_3" type="revolute">
     <parent link="index_finger_2"/>
     <child link="index_finger_3"/>
-    <origin rpy="0 0 0" xyz="0.003 -0.0455 0"/>
+    <origin rpy="0 0 0" xyz="0.003 -0.06825 0"/>
     <axis xyz="0 0 1"/>
-    <limit lower="0" upper="2.44" effort="1.0" velocity="1.0"/>
+    <limit lower="0" upper="1.57" effort="1.0" velocity="1.0"/>
   </joint>
 
   <!-- Middle finger -->
@@ -140,13 +140,13 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://wbr_description/meshes/hand/R_middle_finger_F3.STL" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://wbr_description/meshes/hand/R_middle_finger_F3.STL" scale="0.0015 0.001 0.001"/>
       </geometry>
     </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://wbr_description/meshes/hand/R_middle_finger_F3.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://wbr_description/meshes/hand/R_middle_finger_F3.stl" scale="0.0015 0.001 0.001"/>
       </geometry>
     </collision>
     <inertial>
@@ -168,13 +168,13 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://wbr_description/meshes/hand/R_middle_finger_F2.STL" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://wbr_description/meshes/hand/R_middle_finger_F2.STL" scale="0.001 0.0015 0.001"/>
       </geometry>
     </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://wbr_description/meshes/hand/R_middle_finger_F2.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://wbr_description/meshes/hand/R_middle_finger_F2.stl" scale="0.001 0.0015 0.001"/>
       </geometry>
     </collision>
     <inertial>
@@ -187,22 +187,22 @@
   <joint name="middle_joint_2" type="revolute">
     <parent link="middle_finger_1"/>
     <child link="middle_finger_2"/>
-    <origin rpy="0 1.57 -1.57" xyz="-0.02 0 0"/>
+    <origin rpy="0 1.57 -1.57" xyz="-0.03 0 0"/>
     <axis xyz="0 0 1"/>
-    <limit lower="0" upper="1.75" effort="1.0" velocity="1.0"/>
+    <limit lower="0" upper="1.57" effort="1.0" velocity="1.0"/>
   </joint>
 
   <link name="middle_finger_3">
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://wbr_description/meshes/hand/R_middle_finger_F1.STL" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://wbr_description/meshes/hand/R_middle_finger_F1.STL" scale="0.001 0.0015 0.001"/>
       </geometry>
     </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://wbr_description/meshes/hand/R_middle_finger_F1.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://wbr_description/meshes/hand/R_middle_finger_F1.stl" scale="0.001 0.0015 0.001"/>
       </geometry>
     </collision>
     <inertial>
@@ -215,9 +215,9 @@
   <joint name="middle_joint_3" type="revolute">
     <parent link="middle_finger_2"/>
     <child link="middle_finger_3"/>
-    <origin rpy="0 0 0" xyz="0.003 -0.0505 0"/>
+    <origin rpy="0 0 0" xyz="0.003 -0.06825 0"/>
     <axis xyz="0 0 1"/>
-    <limit lower="0" upper="2.44" effort="1.0" velocity="1.0"/>
+    <limit lower="0" upper="1.57" effort="1.0" velocity="1.0"/>
   </joint>
 
   <!-- Thumb -->
@@ -244,9 +244,9 @@
   <joint name="thumb_joint_1" type="revolute">
     <parent link="hand_base_link"/>
     <child link="thumb_1"/>
-    <origin rpy="-1.57 -1.57 -1.57" xyz="0 0.0067 0.015"/>
+    <origin rpy="-1.57 0 -1.57" xyz="0 0.0067 0.015"/>
     <axis xyz="0 0 1"/>
-    <limit lower="0" upper="1.57" effort="1.0" velocity="1.0"/>
+    <limit lower="-1.57" upper="0" effort="1.0" velocity="1.0"/>
   </joint>
 
   <link name="thumb_2">
@@ -281,13 +281,13 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://wbr_description/meshes/hand/R_thumb_F2.STL" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://wbr_description/meshes/hand/R_thumb_F2.STL" scale="0.001 0.0015 0.001"/>
       </geometry>
     </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://wbr_description/meshes/hand/R_thumb_F2.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://wbr_description/meshes/hand/R_thumb_F2.stl" scale="0.001 0.0015 0.001"/>
       </geometry>
     </collision>
     <inertial>
@@ -309,13 +309,13 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://wbr_description/meshes/hand/R_thumb_F1.STL" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://wbr_description/meshes/hand/R_thumb_F1.STL" scale="0.001 0.0015 0.001"/>
       </geometry>
     </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://wbr_description/meshes/hand/R_thumb_F1.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://wbr_description/meshes/hand/R_thumb_F1.stl" scale="0.001 0.0015 0.001"/>
       </geometry>
     </collision>
     <inertial>
@@ -328,7 +328,7 @@
   <joint name="thumb_joint_4" type="revolute">
     <parent link="thumb_3"/>
     <child link="thumb_4"/>
-    <origin rpy="0 0 0" xyz="0.0045 -0.04 0"/>
+    <origin rpy="0 0 0" xyz="0.0045 -0.06 0"/>
     <axis xyz="0 0 1"/>
     <limit lower="0" upper="1.57" effort="1.0" velocity="1.0"/>
   </joint>

@@ -9,8 +9,9 @@ import ast
 from scipy.spatial import ConvexHull, distance
 import numpy as np
 import sys
+from time import time
 
-row_index = 10  # Change this to load a different row
+row_index = 0  # Change this to load a different row
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(__file__))
 
@@ -65,7 +66,7 @@ def reset_hand(robot_pose):
 
 def reset_object(object_pose):
     """Load and reset the object."""
-    return p.loadURDF(object_path, basePosition=object_pose[0], baseOrientation=object_pose[1], globalScaling=object_scale, useFixedBase=False)
+    return p.loadURDF(object_path, basePosition=object_pose[0], baseOrientation=object_pose[1], globalScaling=object_scale, useFixedBase=True)
 
 
 def load_csv(csv_path, row_index):
@@ -212,19 +213,20 @@ def grasp_with_feedback(oID, rID, sliders):
     }
 
     p.setGravity(0, 0, -9.8)
+    # p.setGravity(0, 0, 0)
     while True:
         p.stepSimulation()
 
         # スライダーで各ジョイントの目標位置を取得して設定
-        for joint_index, slider in sliders:
-            target_position = p.readUserDebugParameter(slider)
-            p.setJointMotorControl2(
-                bodyUniqueId=rID,
-                jointIndex=joint_index,
-                controlMode=p.POSITION_CONTROL,
-                targetPosition=target_position,
-                force=max_grasp_force,  # モーターの出力を設定
-            )
+        # for joint_index, slider in sliders:
+        #     target_position = p.readUserDebugParameter(slider)
+        #     p.setJointMotorControl2(
+        #         bodyUniqueId=rID,
+        #         jointIndex=joint_index,
+        #         controlMode=p.POSITION_CONTROL,
+        #         targetPosition=target_position,
+        #         force=max_grasp_force,  # モーターの出力を設定
+        #     )
 
         # Get feedback from contact points
         contact_points = p.getContactPoints(rID, oID)
@@ -245,13 +247,13 @@ def grasp_with_feedback(oID, rID, sliders):
                 contact_link = point[3]  # Link in contact
                 if contact_link in active_grasp_joints:
                     # print("Force Control Mode!")
-                    desired_force = max_grasp_force - normal_force
+                    # desired_force = max_grasp_force - normal_force
                     # print(desired_force)
                     p.setJointMotorControl2(
                         bodyUniqueId=rID,
                         jointIndex=contact_link,
                         controlMode=p.TORQUE_CONTROL,
-                        force=desired_force,
+                        force=max_grasp_force,
                     )
                 paired_joint = finger_pairs.get(contact_link)
                 if paired_joint is not None:
@@ -259,8 +261,52 @@ def grasp_with_feedback(oID, rID, sliders):
                         bodyUniqueId=rID,
                         jointIndex=paired_joint,
                         controlMode=p.TORQUE_CONTROL,
-                        force=desired_force,
+                        force=max_grasp_force,
                     )
+        vol, ep = grip_qual(rID, oID)
+
+        # tqdm風の出力
+        if vol is not None and ep is not None:
+            sys.stdout.write(f"\rEpsilon: {ep:.4f} | Volume: {vol:.4f}")
+            sys.stdout.flush()
+        else:
+            sys.stdout.write("\rEpsilon: None | Volume: None")
+            sys.stdout.flush()
+
+
+def grasp(oID, rID, sliders):
+    """
+    closes the gripper uniformly + attempts to find a grasp
+    this is based on time + not contact points because contact points could just be a finger poking the object
+    relies on grip_joints - specified by user/config file which joints should close
+    """
+    # p.setGravity(0, 0, -9.8)
+    while True:
+        p.stepSimulation()
+
+        for joint_index, slider in sliders:
+            target_position = p.readUserDebugParameter(slider)
+            p.setJointMotorControl2(
+                bodyUniqueId=rID,
+                jointIndex=joint_index,
+                controlMode=p.POSITION_CONTROL,
+                targetPosition=target_position,
+                force=max_grasp_force,  # モーターの出力を設定
+            )
+
+        for joint in active_grasp_joints:
+            # p.setJointMotorControl2(
+            #     bodyUniqueId=handId, jointIndex=joint, controlMode=p.VELOCITY_CONTROL, targetVelocity=target_grasp_velocity, force=max_grasp_force
+            # )
+
+            p.setJointMotorControl2(
+                bodyUniqueId=rID,
+                jointIndex=joint,
+                controlMode=p.VELOCITY_CONTROL,
+                targetVelocity=target_grasp_velocity,
+                force=max_grasp_force,
+            )
+
         vol, ep = grip_qual(rID, oID)
 
         # tqdm風の出力
@@ -311,7 +357,8 @@ def main():
             slider = p.addUserDebugParameter(joint_name, joint_lower_limit, joint_upper_limit, initial_position)
             sliders.append((joint_index, slider))
 
-    grasp_with_feedback(oID, rID, sliders)
+    # grasp_with_feedback(oID, rID, sliders)
+    grasp(oID, rID, sliders)
 
 
 if __name__ == "__main__":

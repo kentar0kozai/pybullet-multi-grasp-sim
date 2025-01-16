@@ -1,5 +1,22 @@
 <robot name="RH8D">
-  <link name="base_link" />
+  <link name="base_link">
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 -0.5"/>
+      <geometry>
+        <box size="0.001 0.001 0.001"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 -0.5"/>
+      <geometry>
+        <box size="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="1.0"/>
+      <inertia ixx="0.6" ixy="0.0" ixz="0.0" iyy="0.6" iyz="0.0" izz="0.6"/>
+    </inertial>
+  </link>
   <link name="base">
     <inertial>
       <origin xyz="-2.32485e-05 5.52515e-05 0.00231761" rpy="0 0 0"/>
@@ -50,7 +67,6 @@
     <parent link="base"/>
     <child link="forearm"/>
     <limit effort="0.5" lower="-1.57079632679" upper="1.57079632679" velocity="1.0"/>
-    <dynamics damping="0.1"/>
   </joint>
   <link name="palm axis">
     <inertial>
@@ -80,7 +96,6 @@
     <parent link="forearm"/>
     <child link="palm axis"/>
     <limit effort="0.5" lower="-0.785398163397" upper="0.785398163397" velocity="1.0"/>
-    <dynamics damping="0.1"/>
   </joint>
   <link name="palm">
     <inertial>
@@ -105,12 +120,11 @@
     </collision>
   </link>
   <joint name="palm__palm axis" type="revolute">
-    <origin xyz="-0.0265 0 -0.01025" rpy="0 0 0"/>
+    <origin xyz="-0.0265 0 -0.01025" rpy="0.6 0 0"/>
     <axis xyz="-1.0 2.22044604925e-16 0.0"/>
     <parent link="palm axis"/>
     <child link="palm"/>
     <limit effort="0.5" lower="-0.785398163397" upper="0.785398163397" velocity="1.0"/>
-    <dynamics damping="0.1"/>
   </joint>
   <link name="Rproximal">
     <inertial>
@@ -140,7 +154,6 @@
     <parent link="palm"/>
     <child link="Rproximal"/>
     <limit effort="0.5" lower="0.0" upper="1.4835298642" velocity="1.0"/>
-    <dynamics damping="0.1"/>
   </joint>
   <link name="Rmiddle">
     <inertial>
@@ -170,7 +183,6 @@
     <parent link="Rproximal"/>
     <child link="Rmiddle"/>
     <limit effort="0.5" lower="0.0" upper="1.4835298642" velocity="1.0"/>
-    <dynamics damping="0.1"/>
   </joint>
   <link name="Rtip">
     <inertial>
@@ -200,7 +212,6 @@
     <parent link="Rmiddle"/>
     <child link="Rtip"/>
     <limit effort="0.5" lower="0.0" upper="1.4835298642" velocity="1.0"/>
-    <dynamics damping="0.1"/>
   </joint>
   <link name="Mproximal">
     <inertial>
@@ -230,7 +241,6 @@
     <parent link="palm"/>
     <child link="Mproximal"/>
     <limit effort="0.5" lower="0.0" upper="1.4835298642" velocity="1.0"/>
-    <dynamics damping="0.1"/>
   </joint>
   <link name="Mmiddle">
     <inertial>
@@ -260,7 +270,6 @@
     <parent link="Mproximal"/>
     <child link="Mmiddle"/>
     <limit effort="0.5" lower="0.0" upper="1.4835298642" velocity="1.0"/>
-    <dynamics damping="0.1"/>
   </joint>
   <link name="Mtip">
     <inertial>
@@ -290,7 +299,6 @@
     <parent link="Mmiddle"/>
     <child link="Mtip"/>
     <limit effort="0.5" lower="0.0" upper="1.4835298642" velocity="1.0"/>
-    <dynamics damping="0.1"/>
   </joint>
   <link name="Pproximal">
     <inertial>
@@ -320,7 +328,6 @@
     <parent link="palm"/>
     <child link="Pproximal"/>
     <limit effort="0.5" lower="0.0" upper="1.4835298642" velocity="1.0"/>
-    <dynamics damping="0.1"/>
   </joint>
   <link name="Pmiddle">
     <inertial>
@@ -350,7 +357,6 @@
     <parent link="Pproximal"/>
     <child link="Pmiddle"/>
     <limit effort="0.5" lower="0.0" upper="1.4835298642" velocity="1.0"/>
-    <dynamics damping="0.1"/>
   </joint>
   <link name="Ptip">
     <inertial>
@@ -380,7 +386,6 @@
     <parent link="Pmiddle"/>
     <child link="Ptip"/>
     <limit effort="0.5" lower="0.0" upper="1.4835298642" velocity="1.0"/>
-    <dynamics damping="0.1"/>
   </joint>
   <link name="thumb base">
     <inertial>
@@ -410,7 +415,6 @@
     <parent link="palm"/>
     <child link="thumb base"/>
     <limit effort="0.5" lower="0.0" upper="1.57079632679" velocity="1.0"/>
-    <dynamics damping="0.1"/>
   </joint>
   <link name="Tproximal">
     <inertial>
@@ -440,7 +444,6 @@
     <parent link="thumb base"/>
     <child link="Tproximal"/>
     <limit effort="0.5" lower="0.0" upper="1.57079632679" velocity="1.0"/>
-    <dynamics damping="0.1"/>
   </joint>
   <link name="Tmiddle">
     <inertial>
@@ -470,7 +473,6 @@
     <parent link="Tproximal"/>
     <child link="Tmiddle"/>
     <limit effort="0.5" lower="0.0" upper="1.57079632679" velocity="1.0"/>
-    <dynamics damping="0.1"/>
   </joint>
   <link name="Ttip">
     <inertial>
@@ -500,7 +502,6 @@
     <parent link="Tmiddle"/>
     <child link="Ttip"/>
     <limit effort="0.5" lower="0.0" upper="1.57079632679" velocity="1.0"/>
-    <dynamics damping="0.1"/>
   </joint>
   <link name="Iproximal">
     <inertial>
@@ -530,7 +531,6 @@
     <parent link="palm"/>
     <child link="Iproximal"/>
     <limit effort="0.5" lower="0.0" upper="1.4835298642" velocity="1.0"/>
-    <dynamics damping="0.1"/>
   </joint>
   <link name="Imiddle">
     <inertial>
@@ -560,7 +560,6 @@
     <parent link="Iproximal"/>
     <child link="Imiddle"/>
     <limit effort="0.5" lower="0.0" upper="1.4835298642" velocity="1.0"/>
-    <dynamics damping="0.1"/>
   </joint>
   <link name="Itip">
     <inertial>
@@ -590,7 +589,6 @@
     <parent link="Imiddle"/>
     <child link="Itip"/>
     <limit effort="0.5" lower="0.0" upper="1.4835298642" velocity="1.0"/>
-    <dynamics damping="0.1"/>
   </joint>
   <gazebo reference="base">
     <visual>

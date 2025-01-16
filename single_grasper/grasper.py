@@ -172,6 +172,16 @@ def get_given_point(dist, theta_rad, phi_rad, rID, oID):
     return (close_carts, quat)
 
 
+def manual_set():
+
+    set = []
+    array1 = np.array([0.0647, 0.006, 0])
+    array2 = np.array([4.32978028e-17, -7.07106781e-01, 4.32978028e-17, 7.07106781e-01])
+    point = (array1, array2)
+    set.append(point)
+    return set
+
+
 def sphere_set(rID, oID, phi_init=pi, phi_span=2 * pi, theta_init=pi / 2, theta_span=pi / 2):
     """
     move the hand around the object in a reasonable way
@@ -279,17 +289,17 @@ def grasp_with_feedback(oID, handId):
         else:
             # 接触があれば接触力を調整
             for point in contact_points:
-                normal_force = point[9]  # 法線方向の力
+                # normal_force = point[9]  # 法線方向の力
                 contact_link = point[3]  # 接触しているリンク
-                print(contact_link)
+                # print(contact_link)
                 if contact_link in active_grasp_joints:
                     # PD制御で力を調整
-                    desired_force = max_grasp_force - normal_force
+                    # desired_force = max_grasp_force - normal_force
                     p.setJointMotorControl2(
                         bodyUniqueId=handId,
                         jointIndex=contact_link,
                         controlMode=p.TORQUE_CONTROL,
-                        force=desired_force,
+                        force=max_grasp_force,
                     )
                 paired_joint = finger_pairs.get(contact_link)
                 if paired_joint is not None:
@@ -297,7 +307,7 @@ def grasp_with_feedback(oID, handId):
                         bodyUniqueId=handId,
                         jointIndex=paired_joint,
                         controlMode=p.TORQUE_CONTROL,
-                        force=desired_force,
+                        force=max_grasp_force,
                     )
 
 
@@ -307,6 +317,18 @@ def grasp(handId):
     this is based on time + not contact points because contact points could just be a finger poking the object
     relies on grip_joints - specified by user/config file which joints should close
     """
+    cid = p.createConstraint(
+        parentBodyUniqueId=oID,  # 拘束をかけるオブジェクトのID
+        parentLinkIndex=-1,  # ベースリンクに拘束を適用
+        childBodyUniqueId=-1,  # 拘束先はワールド
+        childLinkIndex=-1,
+        jointType=p.JOINT_PRISMATIC,  # プリズマティック（直線移動）拘束
+        jointAxis=[1, 0, 0],  # 移動可能な軸をy軸に設定
+        parentFramePosition=[0, 0, 0],  # オブジェクトの基準座標
+        childFramePosition=[0, 0, 0],  # ワールド座標の基準
+    )
+    p.changeConstraint(cid, maxForce=500)
+
     finish_time = time() + grasp_time_limit
     while time() < finish_time:
         p.stepSimulation()
@@ -314,22 +336,14 @@ def grasp(handId):
             # p.setJointMotorControl2(
             #     bodyUniqueId=handId, jointIndex=joint, controlMode=p.VELOCITY_CONTROL, targetVelocity=target_grasp_velocity, force=max_grasp_force
             # )
-            if joint == 9 or joint == 10:
-                p.setJointMotorControl2(
-                    bodyUniqueId=handId,
-                    jointIndex=joint,
-                    controlMode=p.VELOCITY_CONTROL,
-                    targetVelocity=target_grasp_velocity,
-                    force=max_grasp_force,
-                )
-            else:
-                p.setJointMotorControl2(
-                    bodyUniqueId=handId,
-                    jointIndex=joint,
-                    controlMode=p.VELOCITY_CONTROL,
-                    targetVelocity=target_grasp_velocity,
-                    force=max_grasp_force / 2.0,
-                )
+
+            p.setJointMotorControl2(
+                bodyUniqueId=handId,
+                jointIndex=joint,
+                controlMode=p.VELOCITY_CONTROL,
+                targetVelocity=target_grasp_velocity,
+                force=max_grasp_force,
+            )
 
 
 def relax(rID):
@@ -410,7 +424,7 @@ def check_grip(oID, rID):
     """
     # print("checking strength of current grip")
     pos, oren = p.getBasePositionAndOrientation(rID)
-    time_limit = 5
+    time_limit = 2
     finish_time = time() + time_limit
     grip_lost = False
     p.addUserDebugText("Grav Check!", [-0.07, 0.07, 0.07], textColorRGB=[0, 0, 1], textSize=1)
@@ -461,8 +475,8 @@ def get_obj_info(oID):  # TODO: what about not mesh objects?
     """
     get object data to figure out how far away the hand needs to be to make its approach
     """
-    print("oID:", oID)
-    print(p.getCollisionShapeData(oID, -1))
+    # print("oID:", oID)
+    # print(p.getCollisionShapeData(oID, -1))
     obj_data = p.getCollisionShapeData(oID, -1)[0]
     # geometry_type = obj_data[2]
     # print("geometry type: " + str(geometry_type))
@@ -552,31 +566,38 @@ def gws_pyramid_extension(rID, oID, pyramid_sides=force_pyramid_sides, pyramid_r
 
 def volume(force_torque):
     """
-    get qhull of the 6 dim vectors [fx, fy, fz, tx, ty, tz] created by gws (from contact points)
-    get the volume
+    Get qhull of the 6D vectors [fx, fy, fz, tx, ty, tz] created by GWS (from contact points).
+    Get the volume. Return 0 if force_torque is empty or invalid.
     """
-    vol = ConvexHull(points=force_torque, qhull_options="QJ")
-    return vol.volume
+    if not force_torque or len(force_torque) < 6:  # 必要な点が足りない場合
+        return 0.0
+
+    try:
+        vol = ConvexHull(points=force_torque, qhull_options="QJ")
+        return vol.volume
+    except Exception as e:
+        print(f"ConvexHull error: {e}")
+        return 0.0
 
 
 def epsilon(force_torque):
     """
-    get qhull of the 6 dim vectors [fx, fy, fz, tx, ty, tz] created by gws (from contact points)
-    get the distance from centroid of the hull to the closest vertex
+    Get qhull of the 6D vectors [fx, fy, fz, tx, ty, tz] created by GWS (from contact points).
+    Get the distance from centroid of the hull to the closest vertex. Return 0 if invalid.
     """
-    hull = ConvexHull(points=force_torque, qhull_options="QJ")
-    centroid = []
-    for dim in range(0, 6):
-        centroid.append(np.mean(hull.points[hull.vertices, dim]))
-    shortest_distance = 500000000
-    # closest_point = None
-    for point in force_torque:
-        point_dist = distance.euclidean(centroid, point)
-        if point_dist < shortest_distance:
-            shortest_distance = point_dist
-            # closest_point = point
+    if not force_torque or len(force_torque) < 6:  # 必要な点が足りない場合
+        return 0.0
 
-    return shortest_distance
+    try:
+        hull = ConvexHull(points=force_torque, qhull_options="QJ")
+        centroid = []
+        for dim in range(6):
+            centroid.append(np.mean(hull.points[hull.vertices, dim]))
+        shortest_distance = min(distance.euclidean(centroid, point) for point in hull.points[hull.vertices])
+        return shortest_distance
+    except Exception as e:
+        print(f"Epsilon calculation error: {e}")
+        return 0.0
 
 
 def round_grip_data(grip, decimal_places):
@@ -606,7 +627,8 @@ def round_grip_data(grip, decimal_places):
 rID = reset_hand()
 oID = reset_ob()
 
-hand_set = sphere_set(rID=rID, oID=oID)
+# hand_set = sphere_set(rID=rID, oID=oID)
+hand_set = manual_set()
 
 p.changeDynamics(rID, -1, mass=0.0)
 oID = reset_ob(oID, [0, 0, 0])
@@ -630,8 +652,8 @@ for pose in hand_set:
         if debug_lines:
             add_debug_lines(rID)
         oID = reset_ob(oID, [0, 0, 0], fixed=False)
-        # grasp(rID)
-        grasp_with_feedback(oID, rID)
+        grasp(rID)
+        # grasp_with_feedback(oID, rID)
 
         vol, ep = grip_qual(oID, rID)
         print("Volume: ", vol)
