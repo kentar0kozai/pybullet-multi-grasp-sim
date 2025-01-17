@@ -6,7 +6,7 @@ p.connect(p.GUI)
 p.setAdditionalSearchPath(pybullet_data.getDataPath())
 
 # URDFをロード
-robot_id = p.loadURDF("RobotURDFs/wbr_description/urdf/wbr_hand_1.5.urdf", useFixedBase=True)
+robot_id = p.loadURDF("RobotURDFs/wbr_description/urdf/wbr_hand.urdf", useFixedBase=True)
 # robot_id = p.loadURDF("RobotURDFs/finger_description/urdf/RH8D.urdf", useFixedBase=True)
 # robot_id = p.loadURDF("RobotURDFs/barrett_hand_description/urdf/bh.urdf")
 

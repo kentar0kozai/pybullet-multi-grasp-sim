@@ -117,7 +117,7 @@
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://wbr_description/meshes/hand/R_first_finger_F1.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://wbr_description/meshes/hand/R_first_finger_F1.stl" scale="0.0007 0.0007 0.0007"/>
       </geometry>
     </collision>
     <inertial>
@@ -244,9 +244,9 @@
   <joint name="thumb_joint_1" type="revolute">
     <parent link="hand_base_link"/>
     <child link="thumb_1"/>
-    <origin rpy="-1.57 -1.57 -1.57" xyz="0 0.0067 0.015"/>
+    <origin rpy="-1.57 0 -1.57" xyz="0 0.0067 0.015"/>
     <axis xyz="0 0 1"/>
-    <limit lower="0" upper="1.57" effort="1.0" velocity="1.0"/>
+    <limit lower="-1.57" upper="0" effort="1.0" velocity="1.0"/>
   </joint>
 
   <link name="thumb_2">
@@ -302,7 +302,7 @@
     <child link="thumb_3"/>
     <origin rpy="-1.57 0 0" xyz="0.03 0 0"/>
     <axis xyz="0 0 1"/>
-    <limit lower="0" upper="1.57" effort="1.0" velocity="1.0"/>
+    <limit lower="0" upper="3.14" effort="1.0" velocity="1.0"/>
   </joint>
 
   <link name="thumb_4">
@@ -315,7 +315,7 @@
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://wbr_description/meshes/hand/R_thumb_F1.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://wbr_description/meshes/hand/R_thumb_F1.stl" scale="0.0007 0.0007 0.0007"/>
       </geometry>
     </collision>
     <inertial>

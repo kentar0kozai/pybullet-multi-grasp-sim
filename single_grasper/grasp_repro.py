@@ -293,11 +293,9 @@ def grasp(oID, rID, sliders):
                 targetPosition=target_position,
                 force=max_grasp_force,  # モーターの出力を設定
             )
+            print(target_position)
 
         for joint in active_grasp_joints:
-            # p.setJointMotorControl2(
-            #     bodyUniqueId=handId, jointIndex=joint, controlMode=p.VELOCITY_CONTROL, targetVelocity=target_grasp_velocity, force=max_grasp_force
-            # )
 
             p.setJointMotorControl2(
                 bodyUniqueId=rID,
