@@ -79,7 +79,7 @@ def create_sliders(body_id, init_positions):
     return sliders
 
 
-def handle_input(released, constraint_id, hand_id, obj_id, sliders):
+def handle_input(released, constraint_id, hand_id, obj_id, sliders, vol, ep):
     """
     キー入力:
         gキー → シリンダー解放＋重力ON
@@ -94,7 +94,7 @@ def handle_input(released, constraint_id, hand_id, obj_id, sliders):
         released = True
 
     if p.KEY_WAS_TRIGGERED & events.get(ord("s"), 0):
-        save_grasp(hand_id, obj_id, CSV_PATH)
+        save_grasp(hand_id, obj_id, CSV_PATH, sliders, vol, ep)
 
     _apply_joint_controls(hand_id, sliders)
     return released
@@ -112,7 +112,7 @@ def _apply_joint_controls(body_id, sliders, force=0.3):
         )
 
 
-def save_grasp(hand_id, obj_id, csv_path):
+def save_grasp(hand_id, obj_id, csv_path, sliders, vol, ep):
     """現在の把持状態をCSVに保存/追記"""
 
     def _pose_repr(body):
@@ -122,14 +122,21 @@ def save_grasp(hand_id, obj_id, csv_path):
     robot_pose = _pose_repr(hand_id)
     object_pose = _pose_repr(obj_id)
 
-    joints = {i: p.getJointState(hand_id, i)[:2] for i in range(p.getNumJoints(hand_id))}
+    # joints = {i: p.getJointState(hand_id, i)[:2] for i in range(p.getNumJoints(hand_id))}
+
+    joints = {}
+    for joint_index, slider_id in sliders:
+        target_angle = p.readUserDebugParameter(slider_id)
+        # getJointState の戻り値は (position, velocity, …)
+        velocity = p.getJointState(hand_id, joint_index)[1]
+        joints[joint_index] = (target_angle, velocity)
 
     row = {
         "Robot Pose": robot_pose,
         "Robot Joints": repr(joints),
         "Object Pose": object_pose,
-        "Quality Volume": None,
-        "Quality Epsilon": None,
+        "Quality Volume": vol,
+        "Quality Epsilon": ep,
     }
 
     df = pd.read_csv(csv_path) if os.path.exists(csv_path) else pd.DataFrame()
@@ -219,8 +226,8 @@ def main():
 
     released = False
     while True:
-        released = handle_input(released, constraint_id, hand_id, obj_id, sliders)
         vol, ep = evaluate_grasp(obj_id, hand_id)
+        released = handle_input(released, constraint_id, hand_id, obj_id, sliders, vol, ep)
         eps_str = f"{ep:.4f}" if ep is not None else "None"
         vol_str = f"{vol:.4f}" if vol is not None else "None"
         sys.stdout.write(f"\rEpsilon: {eps_str} | Volume: {vol_str}")
