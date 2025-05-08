@@ -1,17 +1,16 @@
+import os
+import sys
 from configparser import ConfigParser
+from math import pi, sqrt
+
+import numpy as np
+import pandas as pd
 import pybullet as p
 import pybullet_data
 from pyquaternion import Quaternion
-import pandas as pd
-from math import pi, sqrt
-import os
-import ast
 from scipy.spatial import ConvexHull, distance
-import numpy as np
-import sys
-from time import time
 
-row_index = 0  # Change this to load a different row
+CSV_PATH = "good_grasps.csv"
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(__file__))
 
@@ -45,38 +44,129 @@ robot_path = os.path.join(os.path.dirname(__file__), config.get("file_paths", "r
 object_path = os.path.join(os.path.dirname(__file__), config.get("file_paths", "object_path"))
 object_scale = config.getfloat("file_paths", "object_scale")
 
-# PyBullet initialization
-if use_gui:
+
+def init_simulation(gravity=(0, 0, 0), timestep=1 / 240):
+    """PyBullet を初期化して物理設定を行う"""
     p.connect(p.GUI)
-else:
-    p.connect(p.DIRECT)
-
-p.setAdditionalSearchPath(pybullet_data.getDataPath())
-p.setPhysicsEngineParameter(fixedTimeStep=1 / 240.0, numSubSteps=4)
-
-if use_gui:
-    p.resetDebugVisualizerCamera(cameraDistance=0.5, cameraYaw=135, cameraPitch=-20, cameraTargetPosition=[0.0, 0.0, 0.0])
+    p.setAdditionalSearchPath(pybullet_data.getDataPath())
+    p.setGravity(*gravity)
+    p.setTimeStep(timestep)
+    p.setPhysicsEngineParameter(numSolverIterations=200, contactERP=0.9)
 
 
-# Utilities
-def reset_hand(robot_pose):
-    """Load and reset the robot hand."""
-    return p.loadURDF(robot_path, basePosition=robot_pose[0], baseOrientation=robot_pose[1], useFixedBase=True)
+def load_entities():
+    """ロボットとシリンダーをロードして ID を返す"""
+    robot_id = p.loadURDF("../RobotURDFs/wbr_description/urdf/wbr_hand.urdf", baseOrientation=[0, -0.7068252, 0, 0.7073883], useFixedBase=True)
+    cylinder_id = p.loadURDF("../ObjectURDFs/cylinder/cylinder.urdf", basePosition=[-0.05, 0, 0], useFixedBase=False)
+    return robot_id, cylinder_id
 
 
-def reset_object(object_pose):
-    """Load and reset the object."""
-    return p.loadURDF(object_path, basePosition=object_pose[0], baseOrientation=object_pose[1], globalScaling=object_scale, useFixedBase=False)
+def create_fixed_constraint(body_id):
+    """シリンダーをワールドに固定する Constraint を作成"""
+    pos, ori = p.getBasePositionAndOrientation(body_id)
+    return p.createConstraint(
+        parentBodyUniqueId=body_id,
+        parentLinkIndex=-1,
+        childBodyUniqueId=-1,
+        childLinkIndex=-1,
+        jointType=p.JOINT_FIXED,
+        jointAxis=[0, 0, 0],
+        parentFramePosition=[0, 0, 0],
+        childFramePosition=pos,
+        parentFrameOrientation=[0, 0, 0, 1],
+        childFrameOrientation=ori,
+    )
 
 
-def load_csv(csv_path, row_index):
-    """Load a specific row from the CSV file."""
-    data = pd.read_csv(csv_path)
-    row = data.iloc[row_index]
-    robot_pose = ast.literal_eval(row["Robot Pose"])
-    robot_joints = ast.literal_eval(row["Robot Joints"])
-    object_pose = ast.literal_eval(row["Object Pose"])
-    return robot_pose, robot_joints, object_pose
+def reset_initial_positions(robot_id, init_positions):
+    """関節の初期角度をリセット"""
+    for joint_index, angle in init_positions.items():
+        p.resetJointState(robot_id, joint_index, angle)
+
+
+def create_sliders(robot_id, init_positions):
+    """Revoluteジョイント用のスライダーを追加してリストで返す"""
+    sliders = []
+    for i in range(p.getNumJoints(robot_id)):
+        info = p.getJointInfo(robot_id, i)
+        joint_type = info[2]
+        if joint_type == p.JOINT_REVOLUTE:
+            name = info[1].decode("utf-8")
+            init = init_positions.get(i, 0.0)
+            slider_id = p.addUserDebugParameter(name, -1.57, 1.57, init)
+            sliders.append((i, slider_id))
+    return sliders
+
+
+def save_current_grasp(robot_id, object_id, csv_path):
+    """現在の把持情報をCSVに保存／追記する"""
+    # ロボットベース姿勢取得 (位置, クォータニオン)
+    pos, ori = p.getBasePositionAndOrientation(robot_id)
+    robot_pose = (tuple(pos), tuple(ori))
+
+    # 各ジョイントの (位置, 速度) を取得
+    joints = {}
+    for i in range(p.getNumJoints(robot_id)):
+        js = p.getJointState(robot_id, i)
+        joints[i] = (js[0], js[1])
+
+    # 物体ベース姿勢取得
+    o_pos, o_ori = p.getBasePositionAndOrientation(object_id)
+    object_pose = (tuple(o_pos), tuple(o_ori))
+
+    # DataFrame に整形
+    new_row = {
+        "Robot Pose": repr(robot_pose),
+        "Robot Joints": repr(joints),
+        "Object Pose": repr(object_pose),
+        "Quality Volume": None,  # 必要に応じて設定
+        "Quality Epsilon": None,  # 必要に応じて設定
+    }
+    if os.path.exists(csv_path):
+        df = pd.read_csv(csv_path)
+        df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+    else:
+        df = pd.DataFrame([new_row])
+    df.to_csv(csv_path, index=False)
+    print(f"💾 把持情報を保存しました: {csv_path}")
+
+
+def handle_keyboard_events(released, constraint_id, robot_id, object_id, sliders):
+    """
+    キー入力を処理する:
+        - gキー: シリンダーの固定解除＋重力有効化
+        - sキー: 現在の把持情報をCSVに保存
+    """
+    events = p.getKeyboardEvents()
+
+    # gキー解除
+    if not released and ord("g") in events and (events[ord("g")] & p.KEY_WAS_TRIGGERED):
+        p.removeConstraint(constraint_id)
+        p.setGravity(0, 0, -9.8)
+        print("🎉 Cylinder released! Now gravity ON.")
+        released = True
+
+    # sキーでCSV保存
+    if ord("s") in events and (events[ord("s")] & p.KEY_WAS_TRIGGERED):
+        save_current_grasp(robot_id, object_id, CSV_PATH)
+
+    # スライダー制御
+    apply_joint_controls(robot_id, sliders)
+
+    return released
+
+
+def apply_joint_controls(robot_id, sliders, force=0.3):
+    """スライダーの値を読み取ってジョイント制御"""
+    for joint_index, slider_id in sliders:
+        target = p.readUserDebugParameter(slider_id)
+        p.setJointMotorControl2(
+            bodyUniqueId=robot_id,
+            jointIndex=joint_index,
+            controlMode=p.POSITION_CONTROL,
+            targetPosition=target,
+            force=force,
+        )
 
 
 def get_obj_info(oID):  # TODO: what about not mesh objects?
@@ -198,163 +288,51 @@ def grip_qual(oID, rID):
     return vol, ep
 
 
-def grasp_with_feedback(oID, rID, sliders):
-    """
-    Actively control the robot hand to stably grasp the object.
-    """
-
-    finger_pairs = {
-        2: 3,
-        3: 2,
-        5: 6,
-        6: 5,
-        9: 10,
-        10: 9,
-    }
-
-    p.setGravity(0, 0, -9.8)
-    # p.setGravity(0, 0, 0)
-    while True:
-        p.stepSimulation()
-
-        # スライダーで各ジョイントの目標位置を取得して設定
-        # for joint_index, slider in sliders:
-        #     target_position = p.readUserDebugParameter(slider)
-        #     p.setJointMotorControl2(
-        #         bodyUniqueId=rID,
-        #         jointIndex=joint_index,
-        #         controlMode=p.POSITION_CONTROL,
-        #         targetPosition=target_position,
-        #         force=max_grasp_force,  # モーターの出力を設定
-        #     )
-
-        # Get feedback from contact points
-        contact_points = p.getContactPoints(rID, oID)
-        if len(contact_points) == 0:
-            # Close fingers lightly if no contact
-            for joint in active_grasp_joints:
-                p.setJointMotorControl2(
-                    bodyUniqueId=rID,
-                    jointIndex=joint,
-                    controlMode=p.VELOCITY_CONTROL,
-                    targetVelocity=target_grasp_velocity,
-                    force=max_grasp_force,
-                )
-        else:
-            # Adjust force based on contact feedback
-            for point in contact_points:
-                normal_force = point[9]  # Normal force
-                contact_link = point[3]  # Link in contact
-                if contact_link in active_grasp_joints:
-                    # print("Force Control Mode!")
-                    # desired_force = max_grasp_force - normal_force
-                    # print(desired_force)
-                    p.setJointMotorControl2(
-                        bodyUniqueId=rID,
-                        jointIndex=contact_link,
-                        controlMode=p.TORQUE_CONTROL,
-                        force=max_grasp_force,
-                    )
-                paired_joint = finger_pairs.get(contact_link)
-                if paired_joint is not None:
-                    p.setJointMotorControl2(
-                        bodyUniqueId=rID,
-                        jointIndex=paired_joint,
-                        controlMode=p.TORQUE_CONTROL,
-                        force=max_grasp_force,
-                    )
-        vol, ep = grip_qual(rID, oID)
-
-        # tqdm風の出力
-        if vol is not None and ep is not None:
-            sys.stdout.write(f"\rEpsilon: {ep:.4f} | Volume: {vol:.4f}")
-            sys.stdout.flush()
-        else:
-            sys.stdout.write("\rEpsilon: None | Volume: None")
-            sys.stdout.flush()
-
-
-def grasp(oID, rID, sliders):
-    """
-    closes the gripper uniformly + attempts to find a grasp
-    this is based on time + not contact points because contact points could just be a finger poking the object
-    relies on grip_joints - specified by user/config file which joints should close
-    """
-    p.setGravity(0, 0, -9.8)
-    while True:
-        p.stepSimulation()
-
-        for joint_index, slider in sliders:
-            target_position = p.readUserDebugParameter(slider)
-            p.setJointMotorControl2(
-                bodyUniqueId=rID,
-                jointIndex=joint_index,
-                controlMode=p.POSITION_CONTROL,
-                targetPosition=target_position,
-                force=max_grasp_force,  # モーターの出力を設定
-            )
-
-        # for joint in active_grasp_joints:
-        #     p.setJointMotorControl2(
-        #         bodyUniqueId=rID,
-        #         jointIndex=joint,
-        #         controlMode=p.VELOCITY_CONTROL,
-        #         targetVelocity=target_grasp_velocity,
-        #         force=max_grasp_force,
-        #     )
-
-        vol, ep = grip_qual(rID, oID)
-
-        # tqdm風の出力
-        if vol is not None and ep is not None:
-            sys.stdout.write(f"\rEpsilon: {ep:.4f} | Volume: {vol:.4f}")
-            sys.stdout.flush()
-        else:
-            sys.stdout.write("\rEpsilon: None | Volume: None")
-            sys.stdout.flush()
-
-
 def main():
-    # Path to the CSV file
-    csv_path = "good_grasps.csv"
+    # 1) 初期設定
+    init_simulation(gravity=(0, 0, 0), timestep=1 / 240)
 
-    # Load a specific row from the CSV file
-    robot_pose, robot_joints, object_pose = load_csv(csv_path, row_index)
+    # 2) エンティティのロード
+    robot_id, cylinder_id = load_entities()
+    fixed_const = create_fixed_constraint(cylinder_id)
 
-    # Reset simulation
-    p.resetSimulation()
+    # 3) 初期ポーズ設定
+    """ Number of joints: 13
+        Base link index: -1 (base link)
+        Link index: 0,  Link name: hand_base_link
+        Link index: 1,  Link name: index_finger_1
+        Link index: 2,  Link name: index_finger_2
+        Link index: 3,  Link name: index_finger_3
+        Link index: 4,  Link name: index_tip
+        Link index: 5,  Link name: middle_finger_1
+        Link index: 6,  Link name: middle_finger_2
+        Link index: 7,  Link name: middle_finger_3
+        Link index: 8,  Link name: thumb_1
+        Link index: 9,  Link name: thumb_2
+        Link index: 10, Link name: thumb_3
+        Link index: 11, Link name: thumb_4
+        Link index: 12, Link name: thumb_tip """
+    init_positions = {8: 1.57}
+    reset_initial_positions(robot_id, init_positions)
 
-    # Load robot and object
-    rID = reset_hand(robot_pose)
-    oID = reset_object(object_pose)
+    # 4) デバッグ用スライダー作成
+    sliders = create_sliders(robot_id, init_positions)
 
-    # Set initial joint states
-    initial_joint_states = {}
-    for joint_index, joint_state in robot_joints.items():
-        p.resetJointState(rID, joint_index, joint_state[0])
-        initial_joint_states[joint_index] = joint_state[0]
+    # 5) メインループ
+    released = False
+    while True:
+        released = handle_keyboard_events(released, fixed_const, robot_id, cylinder_id, sliders)
+        vol, ep = grip_qual(robot_id, cylinder_id)
 
-    # ジョイント情報を取得
-    num_joints = p.getNumJoints(rID)
-    print(f"Number of joints: {num_joints}")
-
-    # スライダーを使ったデバッグパラメータを追加
-    sliders = []
-    for joint_index in range(num_joints):
-        joint_info = p.getJointInfo(rID, joint_index)
-        joint_name = joint_info[1].decode("utf-8")
-        joint_type = joint_info[2]
-
-        # Revoluteジョイントのみにスライダーを追加
-        if joint_type == p.JOINT_REVOLUTE:
-            initial_position = initial_joint_states.get(joint_index, 0)
-            joint_lower_limit = joint_info[8] if joint_info[8] > -1e10 else -3.14
-            joint_upper_limit = joint_info[9] if joint_info[9] < 1e10 else 3.14
-            slider = p.addUserDebugParameter(joint_name, joint_lower_limit, joint_upper_limit, initial_position)
-            sliders.append((joint_index, slider))
-
-    # grasp_with_feedback(oID, rID, sliders)
-    grasp(oID, rID, sliders)
+        # tqdm風の出力
+        if vol is not None and ep is not None:
+            sys.stdout.write(f"\rEpsilon: {ep:.4f} | Volume: {vol:.4f}")
+            sys.stdout.flush()
+        else:
+            sys.stdout.write("\rEpsilon: None | Volume: None")
+            sys.stdout.flush()
+        p.stepSimulation()
+        # time.sleep(1 / 240)
 
 
 if __name__ == "__main__":

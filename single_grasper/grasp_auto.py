@@ -3,7 +3,6 @@ import os
 import random
 from configparser import ConfigParser
 from math import pi, sqrt
-from multiprocessing import Process, Queue, current_process
 from time import sleep, time
 
 import astropy.coordinates
@@ -14,19 +13,38 @@ from pyquaternion import Quaternion
 from scipy.spatial import ConvexHull, distance
 from transforms3d import euler
 
-# 設定ファイルの読み込み
 PROJECT_ROOT = os.path.dirname(os.path.dirname(__file__))
+
+
+# PYBULLET HOUSEKEEPING + GUI MAINTENANCE
+physicsClient = p.connect(p.GUI)  # or p.DIRECT for non-graphical version
+p.setAdditionalSearchPath(pybullet_data.getDataPath())  # optionally
+
+p.setPhysicsEngineParameter(fixedTimeStep=1 / 240.0, numSubSteps=4)
+
+# This is to change the visualizer window settings
+p.configureDebugVisualizer(p.COV_ENABLE_RGB_BUFFER_PREVIEW, enable=0)
+p.configureDebugVisualizer(p.COV_ENABLE_DEPTH_BUFFER_PREVIEW, enable=0)
+p.configureDebugVisualizer(p.COV_ENABLE_SEGMENTATION_MARK_PREVIEW, enable=0)
+# change init camera distance/location to view scene
+p.resetDebugVisualizerCamera(cameraDistance=0.5, cameraYaw=135, cameraPitch=-20, cameraTargetPosition=[0.0, 0.0, 0.0])
+
+
+# GLOBAL VARIABLES  - from config file
 config = ConfigParser()
+print(os.path.join(os.path.dirname(__file__), "bh_config.ini"))
 config.read(os.path.join(os.path.dirname(__file__), "bh_config.ini"))
 
-# グローバル設定
-robot_path = os.path.join(PROJECT_ROOT, config.get("file_paths", "robot_path"))
-object_base_path = os.path.join("C:/Users/010200017/Documents/GitHub/pybullet-multi-grasp-sim/ObjectURDFs/")
+robot_path = config.get("file_paths", "robot_path")
+robot_path = os.path.join(PROJECT_ROOT, robot_path)
+object_path = config.get("file_paths", "object_path")
+object_path = os.path.join(PROJECT_ROOT, object_path)
 object_scale = config.getfloat("file_paths", "object_scale")
 
 init_grasp_distance = config.getfloat("grasp_settings", "init_grasp_distance")
 speed_find_distance = config.getfloat("grasp_settings", "speed_find_distance")
 grasp_distance_margin = config.getfloat("grasp_settings", "grasp_distance_margin")
+
 max_grasp_force = config.getfloat("grasp_settings", "max_grasp_force")
 target_grasp_velocity = config.getfloat("grasp_settings", "target_grasp_velocity")
 grasp_time_limit = config.getfloat("grasp_settings", "grasp_time_limit")
@@ -75,21 +93,13 @@ def reset_hand(rID=None, rPos=(0, 0, -init_grasp_distance), rOr=(0, 0, 0, 1), fi
     return rID
 
 
-def reset_ob(oID=None, oPos=(0, 0, 0), object_path=None, fixed=False):
+def reset_ob(oID=None, oPos=(0, 0, 0), fixed=True):
     """
-    Reset or load the object URDF. If an object ID exists, it is removed, and a new one is loaded.
-    :param oID: Object ID to remove if it exists (optional).
-    :param oPos: Position where the object will be placed (optional).
-    :param object_path: Path to the URDF file of the object to be loaded (required).
-    :param fixed: Whether the object is fixed (immovable).
+    reset by deleting
     """
-    if oID is not None:  # oIDが存在する場合のみ削除
+    if oID is not None:
         p.removeBody(oID)
 
-    if object_path is None:
-        raise ValueError("object_path must be provided to load the URDF file.")
-
-    # オブジェクトのロード
     oID = p.loadURDF(object_path, oPos, globalScaling=object_scale, useFixedBase=fixed)
 
     return oID
@@ -162,6 +172,16 @@ def get_given_point(dist, theta_rad, phi_rad, rID, oID):
     return (close_carts, quat)
 
 
+def manual_set():
+
+    set = []
+    array1 = np.array([0.0647, 0.006, 0])
+    array2 = np.array([4.32978028e-17, -7.07106781e-01, 4.32978028e-17, 7.07106781e-01])
+    point = (array1, array2)
+    set.append(point)
+    return set
+
+
 def sphere_set(rID, oID, phi_init=pi, phi_span=2 * pi, theta_init=pi / 2, theta_span=pi / 2):
     """
     move the hand around the object in a reasonable way
@@ -200,6 +220,12 @@ def rand_set(rID, oID, dist=init_grasp_distance, n=10):
     return set
 
 
+def reset_initial_positions(robot_id, init_positions):
+    """関節の初期角度をリセット"""
+    for joint_index, angle in init_positions.items():
+        p.resetJointState(robot_id, joint_index, angle)
+
+
 def wrist_rotations(pose):
     """
     rotates the wrist of hand in place, increasing number of grasp possibilities for one position
@@ -228,20 +254,37 @@ def wrist_rotations(pose):
 #####################################################################################################################"""
 
 
-def grasp(handId):
+def grasp_with_feedback(oID, handId):
     """
-    closes the gripper uniformly + attempts to find a grasp
-    this is based on time + not contact points because contact points could just be a finger poking the object
-    relies on grip_joints - specified by user/config file which joints should close
+    アクティブに制御しながら物体を安定把持
     """
+
+    finger_pairs = {
+        2: 3,
+        3: 2,
+        5: 6,
+        6: 5,
+        9: 10,
+        10: 9,
+    }
+
     finish_time = time() + grasp_time_limit
     while time() < finish_time:
         p.stepSimulation()
-        for joint in active_grasp_joints:
-            # p.setJointMotorControl2(
-            #     bodyUniqueId=handId, jointIndex=joint, controlMode=p.VELOCITY_CONTROL, targetVelocity=target_grasp_velocity, force=max_grasp_force
-            # )
-            if joint == 3:
+
+        num_joints = p.getNumJoints(rID)
+        for joint_index in range(num_joints):
+            if joint_index not in active_grasp_joints:
+                # 非アクティブなジョイントは固定
+                p.setJointMotorControl2(
+                    bodyUniqueId=rID, jointIndex=joint_index, controlMode=p.POSITION_CONTROL, targetPosition=0.0, force=5000  # 十分な固定力
+                )
+
+        # 接触点から力のフィードバックを取得
+        contact_points = p.getContactPoints(handId, oID)
+        if len(contact_points) < 3:
+            # 接触がなければ軽く閉じる
+            for joint in active_grasp_joints:
                 p.setJointMotorControl2(
                     bodyUniqueId=handId,
                     jointIndex=joint,
@@ -249,14 +292,61 @@ def grasp(handId):
                     targetVelocity=target_grasp_velocity,
                     force=max_grasp_force,
                 )
-            else:
-                p.setJointMotorControl2(
-                    bodyUniqueId=handId,
-                    jointIndex=joint,
-                    controlMode=p.VELOCITY_CONTROL,
-                    targetVelocity=target_grasp_velocity,
-                    force=max_grasp_force / 2.0,
-                )
+        else:
+            # 接触があれば接触力を調整
+            for point in contact_points:
+                # normal_force = point[9]  # 法線方向の力
+                contact_link = point[3]  # 接触しているリンク
+                # print(contact_link)
+                if contact_link in active_grasp_joints:
+                    # PD制御で力を調整
+                    # desired_force = max_grasp_force - normal_force
+                    p.setJointMotorControl2(
+                        bodyUniqueId=handId,
+                        jointIndex=contact_link,
+                        controlMode=p.TORQUE_CONTROL,
+                        force=max_grasp_force,
+                    )
+                paired_joint = finger_pairs.get(contact_link)
+                if paired_joint is not None:
+                    p.setJointMotorControl2(
+                        bodyUniqueId=handId,
+                        jointIndex=paired_joint,
+                        controlMode=p.TORQUE_CONTROL,
+                        force=max_grasp_force,
+                    )
+
+
+def grasp(handId):
+    """
+    closes the gripper uniformly + attempts to find a grasp
+    this is based on time + not contact points because contact points could just be a finger poking the object
+    relies on grip_joints - specified by user/config file which joints should close
+    """
+    # cid = p.createConstraint(
+    #     parentBodyUniqueId=oID,  # 拘束をかけるオブジェクトのID
+    #     parentLinkIndex=-1,  # ベースリンクに拘束を適用
+    #     childBodyUniqueId=-1,  # 拘束先はワールド
+    #     childLinkIndex=-1,
+    #     jointType=p.JOINT_PRISMATIC,  # プリズマティック（直線移動）拘束
+    #     jointAxis=[1, 0, 0],  # 移動可能な軸をy軸に設定
+    #     parentFramePosition=[0, 0, 0],  # オブジェクトの基準座標
+    #     childFramePosition=[0, 0, 0],  # ワールド座標の基準
+    # )
+    # p.changeConstraint(cid, maxForce=500)
+
+    finish_time = time() + grasp_time_limit
+    while time() < finish_time:
+        p.stepSimulation()
+        for joint in active_grasp_joints:
+
+            p.setJointMotorControl2(
+                bodyUniqueId=handId,
+                jointIndex=joint,
+                controlMode=p.VELOCITY_CONTROL,
+                targetVelocity=target_grasp_velocity,
+                force=max_grasp_force,
+            )
 
 
 def relax(rID):
@@ -336,28 +426,33 @@ def check_grip(oID, rID):
     check grip by adding in gravity
     """
     # print("checking strength of current grip")
-    mass = 0.1
-    mag = 9.8 * mass
     pos, oren = p.getBasePositionAndOrientation(rID)
-    time_limit = 0.5
+    time_limit = 2
     finish_time = time() + time_limit
+    grip_lost = False
     p.addUserDebugText("Grav Check!", [-0.07, 0.07, 0.07], textColorRGB=[0, 0, 1], textSize=1)
+    p.setGravity(0, 0, -9.8)
     while time() < finish_time:
         p.stepSimulation()
-        p.applyExternalForce(oID, linkIndex=-1, forceObj=[0, 0, -mag], posObj=pos, flags=p.WORLD_FRAME)
-    contact = p.getContactPoints(oID, rID)  # see if hand is still holding obj after gravity is applied
-    if len(contact) > 0:
-        p.removeAllUserDebugItems()
-        p.addUserDebugText("Grav Check Passed!", [-0.07, 0.07, 0.07], textColorRGB=[0, 1, 0], textSize=1)
-        print("Grav Check Passed")
-        sleep(0.2)
-        return get_robot_config(rID, oID)
-    else:
+        contact = p.getContactPoints(oID, rID)  # see if hand is still holding obj after gravity is applied
+        if len(contact) == 0:
+            grip_lost = True
+            break
+    p.setGravity(0, 0, 0)
+
+    # Evaluate the result of the grip test
+    if grip_lost:
         p.removeAllUserDebugItems()
         p.addUserDebugText("Grav Check Failed!", [-0.07, 0.07, 0.07], textColorRGB=[1, 0, 0], textSize=1)
         print("Grav Check Failed")
         sleep(0.2)
-        return None
+        return None  # Grip failed, move to the next attempt
+    else:
+        p.removeAllUserDebugItems()
+        p.addUserDebugText("Grav Check Passed!", [-0.07, 0.07, 0.07], textColorRGB=[0, 1, 0], textSize=1)
+        print("Grav Check Passed")
+        sleep(0.2)
+        return get_robot_config(rID, oID)  # Grip successful, return configuration
 
 
 def grip_qual(oID, rID):
@@ -383,6 +478,8 @@ def get_obj_info(oID):  # TODO: what about not mesh objects?
     """
     get object data to figure out how far away the hand needs to be to make its approach
     """
+    # print("oID:", oID)
+    # print(p.getCollisionShapeData(oID, -1))
     obj_data = p.getCollisionShapeData(oID, -1)[0]
     # geometry_type = obj_data[2]
     # print("geometry type: " + str(geometry_type))
@@ -472,42 +569,38 @@ def gws_pyramid_extension(rID, oID, pyramid_sides=force_pyramid_sides, pyramid_r
 
 def volume(force_torque):
     """
-    get qhull of the 6 dim vectors [fx, fy, fz, tx, ty, tz] created by gws (from contact points)
-    get the volume
+    Get qhull of the 6D vectors [fx, fy, fz, tx, ty, tz] created by GWS (from contact points).
+    Get the volume. Return 0 if force_torque is empty or invalid.
     """
-    if len(force_torque) < 3:
-        print("Error: force_torque does not have enough points for ConvexHull")
-        print("force_torque:", force_torque)
-        return None  # または、適切なエラーハンドリングを追加
+    if not force_torque or len(force_torque) < 6:  # 必要な点が足りない場合
+        return 0.0
 
     try:
         vol = ConvexHull(points=force_torque, qhull_options="QJ")
+        return vol.volume
     except Exception as e:
-        print("ConvexHull computation failed:", e)
-        print("force_torque:", force_torque)
-        return None
-
-    return vol.volume
+        print(f"ConvexHull error: {e}")
+        return 0.0
 
 
 def epsilon(force_torque):
     """
-    get qhull of the 6 dim vectors [fx, fy, fz, tx, ty, tz] created by gws (from contact points)
-    get the distance from centroid of the hull to the closest vertex
+    Get qhull of the 6D vectors [fx, fy, fz, tx, ty, tz] created by GWS (from contact points).
+    Get the distance from centroid of the hull to the closest vertex. Return 0 if invalid.
     """
-    hull = ConvexHull(points=force_torque, qhull_options="QJ")
-    centroid = []
-    for dim in range(0, 6):
-        centroid.append(np.mean(hull.points[hull.vertices, dim]))
-    shortest_distance = 500000000
-    # closest_point = None
-    for point in force_torque:
-        point_dist = distance.euclidean(centroid, point)
-        if point_dist < shortest_distance:
-            shortest_distance = point_dist
-            # closest_point = point
+    if not force_torque or len(force_torque) < 6:  # 必要な点が足りない場合
+        return 0.0
 
-    return shortest_distance
+    try:
+        hull = ConvexHull(points=force_torque, qhull_options="QJ")
+        centroid = []
+        for dim in range(6):
+            centroid.append(np.mean(hull.points[hull.vertices, dim]))
+        shortest_distance = min(distance.euclidean(centroid, point) for point in hull.points[hull.vertices])
+        return shortest_distance
+    except Exception as e:
+        print(f"Epsilon calculation error: {e}")
+        return 0.0
 
 
 def round_grip_data(grip, decimal_places):
@@ -529,111 +622,62 @@ def round_grip_data(grip, decimal_places):
     return rounded_robot_pose, rounded_robot_joints, rounded_object_pose, rounded_vol, rounded_ep
 
 
-def get_object_urdfs():
-    urdfs = []
-    for folder in os.listdir(object_base_path):
-        folder_path = os.path.join(object_base_path, folder)
-        if os.path.isdir(folder_path):
-            urdf_file = os.path.join(folder_path, f"{folder}.urdf")
-            if os.path.exists(urdf_file):
-                urdfs.append((folder, urdf_file))  # (物体名, URDFファイルパス)のタプルを追加
-    return urdfs
+"""#####################################################################################################################
+                                        MAIN MAIN MAIN MAIN MAIN MAIN
+#####################################################################################################################"""
 
 
-# マルチプロセスで実行するシミュレーション関数
-def run_simulation(object_name, urdf_file, queue):
-    process_name = current_process().name
-    print(f"{process_name} is processing {urdf_file}")
+rID = reset_hand()
+oID = reset_ob()
 
-    # PYBULLETの初期設定
-    physics_client = p.connect(p.GUI)
-    p.setAdditionalSearchPath(pybullet_data.getDataPath())
-    p.setPhysicsEngineParameter(fixedTimeStep=1 / 60.0, numSubSteps=4)
-    # This is to change the visualizer window settings
-    p.configureDebugVisualizer(p.COV_ENABLE_RGB_BUFFER_PREVIEW, enable=0)
-    p.configureDebugVisualizer(p.COV_ENABLE_DEPTH_BUFFER_PREVIEW, enable=0)
-    p.configureDebugVisualizer(p.COV_ENABLE_SEGMENTATION_MARK_PREVIEW, enable=0)
-    # change init camera distance/location to view scene
-    p.resetDebugVisualizerCamera(cameraDistance=0.5, cameraYaw=135, cameraPitch=-20, cameraTargetPosition=[0.0, 0.0, 0.0])
+# hand_set = sphere_set(rID=rID, oID=oID)
+hand_set = manual_set()
 
-    # ロボットとオブジェクトのリセット
-    rID = reset_hand()
-    oID = reset_ob(oID=None, object_path=urdf_file, fixed=True)  # URDFファイルのパスをobject_pathに渡す
+p.changeDynamics(rID, -1, mass=0.0)
+oID = reset_ob(oID, [0, 0, 0])
 
-    hand_set = sphere_set(rID=rID, oID=oID)
+good_grasps = []
 
-    p.changeDynamics(rID, -1, mass=0.0)
-    oID = reset_ob(oID, [0, 0, 0], object_path=urdf_file, fixed=True)  # URDFファイルのパスを渡す
+pos = 0
 
-    good_grasps = []
-    pos = 0
+init_positions = {8: 1.57}
+for pose in hand_set:
+    poses = []
+    poses.append(pose)
+    if use_wrist_rotations:
+        rotated_poses = wrist_rotations(pose)
+        poses = poses + rotated_poses
 
-    # グリップのシミュレーション
-    for pose in hand_set:
-        poses = [pose]
-        if use_wrist_rotations:
-            rotated_poses = wrist_rotations(pose)
-            poses += rotated_poses
+    for pose in poses:
+        print(" ")
+        print("Pose #: ", pos)
+        relax(rID)
+        p.removeAllUserDebugItems()
+        p.resetBasePositionAndOrientation(rID, pose[0], pose[1])
+        if debug_lines:
+            add_debug_lines(rID)
+        oID = reset_ob(oID, [0, 0, 0], fixed=False)
+        reset_initial_positions(rID, init_positions)
+        grasp(rID)
+        # grasp_with_feedback(oID, rID)
 
-        for pose in poses:
-            relax(rID)
-            p.removeAllUserDebugItems()
-            p.resetBasePositionAndOrientation(rID, pose[0], pose[1])
-            if debug_lines:
-                add_debug_lines(rID)
-            oID = reset_ob(oID, [0, 0, 0], object_path=urdf_file)  # URDFファイルのパスを渡す
-            grasp(rID)
-            vol, ep = grip_qual(oID, rID)
-            good_grasps.append(check_grip(oID, rID))
-            pos += 1
-
-    # 結果の保存
-    decimal_places = 5
-    output_file = f"good_grasps_{object_name}.csv"
-    with open(output_file, mode="w", newline="") as file:
-        writer = csv.writer(file)
-        writer.writerow(["Robot Pose", "Robot Joints", "Object Pose", "Quality Volume", "Quality Epsilon"])
-        for grip in good_grasps:
-            if grip is not None:
-                rounded_robot_pose, rounded_robot_joints, rounded_object_pose, rounded_vol, rounded_ep = round_grip_data(grip, decimal_places)
-                writer.writerow([rounded_robot_pose, rounded_robot_joints, rounded_object_pose, rounded_vol, rounded_ep])
-
-    queue.put(process_name)
-    p.disconnect(physics_client)
-    print(f"{process_name} finished processing {urdf_file}")
+        vol, ep = grip_qual(oID, rID)
+        print("Volume: ", vol)
+        print("Epslion: ", ep)
+        good_grasps.append(check_grip(oID, rID))
+        pos += 1
 
 
-def manage_processes(urdfs, num_processes):
-    queue = Queue()
-    processes = []
+print("Num Good Grips: ", len(good_grasps))
+print("Grips:")
+decimal_places = 5
 
-    while urdfs or processes:  # urdfsが残っているか、もしくは進行中のプロセスがあるかチェック
-        print(f"++++++++++++++{len(processes)}")
+with open("good_grasps.csv", mode="w", newline="") as file:
+    writer = csv.writer(file)
+    writer.writerow(["Robot Pose", "Robot Joints", "Object Pose", "Quality Volume", "Quality Epsilon"])
 
-        # 新たなプロセスを開始（プロセス数が最大値に達していない場合）
-        while len(processes) < num_processes and urdfs:
-            object_name, urdf_file = urdfs.pop(0)
-            process = Process(target=run_simulation, args=(object_name, urdf_file, queue))
-            processes.append(process)
-            process.start()
-
-        # キューが空ではない場合、終了したプロセスを処理
-        while not queue.empty():
-            finished_process = queue.get()
-            processes = [p for p in processes if p.is_alive()]  # 終了したプロセスをリストから削除
-
-        # 終了したプロセスの処理を定期的に行う
-        processes = [p for p in processes if p.is_alive()]
-
-        sleep(0.1)  # CPU負荷を軽減
-
-
-# マルチプロセスの開始
-if __name__ == "__main__":
-    num_processes = 4  # 使用するプロセス数
-    urdfs = get_object_urdfs()  # URDFファイルのリストを取得
-
-    if urdfs:
-        manage_processes(urdfs, num_processes)
-    else:
-        print("URDFファイルが見つかりませんでした。")
+    for grip in good_grasps:
+        if grip is not None:
+            rounded_robot_pose, rounded_robot_joints, rounded_object_pose, rounded_vol, rounded_ep = round_grip_data(grip, decimal_places)
+            writer.writerow([rounded_robot_pose, rounded_robot_joints, rounded_object_pose, rounded_vol, rounded_ep])
+        print(grip)
